@@ -54,3 +54,7 @@ build/
 coverage/
 *.log
 npm-debug.log*
+
+# Docker local dev data (sqlite via bind mount)
+data/
+!data/.gitkeep

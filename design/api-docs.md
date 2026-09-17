@@ -485,6 +485,7 @@ append `new_order` / apply `order_status_updated` events as they arrive.
 - `menu.is_available`, `orders.kitchen_status` and `orders.order_status` are
   **persisted** — update them only through their PATCH endpoints; never treat
   them as frontend-only.
-- Payment keys are **sandbox only** (`DEV_` prefix in the backend `.env`), SMS is
-  Fast2SMS free key (`DEV_FAST2SMS_API_KEY`, `DEV_SMS_MOCK` toggle).
-- Order number is the customer-facing number shown on the success screen and SMS bill.
+- Payment keys are **sandbox only** (`DEV_` prefix in the backend `.env`), bill
+  emails use **free SMTP** (`DEV_SMTP_*` vars, `DEV_EMAIL_MOCK` toggle to print
+  to console instead of sending).
+- Order number is the customer-facing number shown on the success screen and bill email.

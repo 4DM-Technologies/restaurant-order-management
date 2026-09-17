@@ -82,7 +82,7 @@ If the session JWT exists **and** the role is `employee` or `admin`, the same me
   - Validate phone number (10-digit Indian / E.164).
 - Clicking **"Proceed to Pay"** calls the backend `/payment` endpoint (Section 6).
 - **On payment failure/cancel:** the customer is returned to the cart and a **user-friendly error message** is shown in the cart section (e.g. "Payment was cancelled. No amount was charged. Please try again."). Cart contents are **not** lost.
-- **On success:** backend places the order and sends the bill SMS → customer sees a success screen ("Order placed! Order #12") and the cart is cleared.
+- **On success:** backend places the order and emails the bill → customer sees a success screen ("Order placed! Order #12") and the cart is cleared.
 
 ### 4.3 `/payment` — (backend-driven page/redirect)
 
@@ -195,7 +195,7 @@ All JSON unless noted. Protected = requires `Authorization: Bearer <JWT>`; roles
 | `POST` | `/menu` | **protected** (employee/admin) | Add menu item {name, price, description, category, prices} |
 | `PATCH` | `/menu/{menu_uuid}` | **protected** (employee/admin) | Update item (availability toggle / `is_available`, prices, etc.) |
 | `DELETE` | `/menu/{menu_uuid}` | **protected** (employee/admin) | Remove menu item |
-| `POST` | `/payment` | public | Single payment endpoint — receives the **final** gateway result from the frontend (or gateway callback). Branches by status: **success** → insert `orders` + `order_items`, recompute prices, `payment_status='success'`, `kitchen_status='in_queue'`, `order_status='ordered'`, store `payment_transaction_id`, generate bill + SMS, broadcast kitchen WS; **failed / cancelled** → no order rows, return friendly error so the cart stays intact |
+| `POST` | `/payment` | public | Single payment endpoint — receives the **final** gateway result from the frontend (or gateway callback). Branches by status: **success** → insert `orders` + `order_items`, recompute prices, `payment_status='success'`, `kitchen_status='in_queue'`, `order_status='ordered'`, store `payment_transaction_id`, generate + email bill, broadcast kitchen WS; **failed / cancelled** → no order rows, return friendly error so the cart stays intact |
 | `GET` | `/orders` | **protected** (employee/admin) | Orders for kitchen (FIFO, includes `kitchen_status` + `order_status`) |
 | `PATCH` | `/orders/{order_uuid}` | **protected** (employee/admin) | Update `kitchen_status` or `order_status`. **Validation = enum only:** value must be one of the column's ENUM values (`in_queue`/`preparing`/`prepared` or `ordered`/`delivered`). No enforced transition order — staff may jump or revert freely |
 | `POST` | `/auth/login` | public | {email, password} → JWT {token, role} |
@@ -217,7 +217,7 @@ POST /api/v1/payment {order_ref, gateway_status, transaction_id, ...}
    ├─ status = success
    │    → validate server-side → INSERT orders + order_items (update orders table)
    │    → payment_status='success', kitchen_status='in_queue', order_status='ordered', store transaction_id, recompute total = sum of lines
-   │    → generate bill message + send SMS to phone_number
+   │    → generate bill message + email it to the customer
    │    → broadcast new order to kitchen WS (FIFO)
    │    → respond {status: 'success', order_number, total}
    │
@@ -270,12 +270,12 @@ POST /api/v1/payment {order_ref, gateway_status, transaction_id, ...}
 ```
 cart → gateway sandbox redirect/checkout (customer pays)
    → result comes back to POST /api/v1/payment
-   → status = success  → update orders table (insert order + items) → SMS bill → kitchen WS broadcast → success screen
+   → status = success  → update orders table (insert order + items) → email bill → kitchen WS broadcast → success screen
    → status = failed   → no order row → return to /cart → friendly error, cart preserved
    → status = cancelled → no order row → return to /cart → friendly "cancelled, no charge" error, cart preserved
 ```
 
-- The **single `POST /api/v1/payment` endpoint** is the source of truth for the outcome. On **success** it validates the gateway response, **then inserts `orders` + `order_items`** (pricing recomputed from DB prices & quantities; `unit_price` snapshot), stores `payment_transaction_id`, sets `payment_status='success'`, initializes `kitchen_status='in_queue'` and `order_status='ordered'`, sends the bill SMS, and broadcasts the order to the kitchen.
+- The **single `POST /api/v1/payment` endpoint** is the source of truth for the outcome. On **success** it validates the gateway response, **then inserts `orders` + `order_items`** (pricing recomputed from DB prices & quantities; `unit_price` snapshot), stores `payment_transaction_id`, sets `payment_status='success'`, initializes `kitchen_status='in_queue'` and `order_status='ordered'`, emails the bill, and broadcasts the order to the kitchen.
 - On **failure/cancellation it must NOT create order rows** — it just returns a friendly error/cancel message.
 - Handle idempotency: if the same `order_ref` reaches the endpoint twice, do not double-insert. If the order already exists with `payment_status='success'`, return the existing order.
 
@@ -292,16 +292,15 @@ Design: WebSocket connection per page; small manager in FastAPI (`ConnectionMana
 
 ---
 
-## 9. SMS — Bill Delivery
+## 9. Bill Email — Free SMTP Delivery
 
-- On successful order placement, generate a **bill message** (order number, items w/ qty+size, line & total, payment method, table name) and send it via SMS to `phone_number` captured at payment. The bill format is a plain-text friendly message.
-- **SMS provider: Fast2SMS (free)** — chosen because it is the free-to-use Indian SMS service:
-  - **Free API key** is issued immediately from the Fast2SMS dashboard → "Dev API" section.
-  - **₹50 free wallet credit** is added after signup, so the bill SMS can be sent for real at zero cost during dev/demo.
-  - The **"Quick SMS" route** (`route=q`) works **without DLT registration**, so it can be used right away for testing (DLT/TRAI registration is only needed for production business SMS).
-  - REST API, Indian 10-digit numbers, simple `requests`/`httpx` call (see docs.fast2sms.com).
-- Wrap SMS in a service with a **mock adapter**: when `DEV_SMS_MOCK=true`, the bill is printed to the console and nothing is sent (so development runs offline). When `false`, it calls the Fast2SMS Quick SMS API with `DEV_FAST2SMS_API_KEY`.
-- **Free-tier note (read this):** Fast2SMS is **partially free** — signup is free and you get **₹50 wallet credit** (~100–250 SMS to Indian 10-digit numbers, roughly ₹0.20–₹0.50 per SMS). It is **not unlimited free**. After the ₹50 is spent you must top up. For everyday development/testing keep `DEV_SMS_MOCK=true`; only flip it to `false` when you specifically want to demo a real SMS. Budget your ₹50 accordingly if demoing live SMS at scale.
+- On successful order placement, generate a **bill message** (order number, items w/ qty+size, line & total, payment method, table name) and email it to the customer (the payment request captures the customer email). The bill is a plain-text friendly message.
+- **Email provider: 100% free SMTP (Gmail)** — chosen because it costs nothing:
+  - Use any regular Gmail address with a **16-character App Password** (Google Account → Security → 2-Step Verification → App passwords). No paid plan involved.
+  - SMTP settings: host `smtp.gmail.com`, **port `587` with STARTTLS**. Username = the Gmail address, password = the App Password, sender = the same address.
+  - Drop-in free alternatives: **Zoho Mail** free tier or **Outlook.com** SMTP — any SMTP server works; the settings are plain env vars.
+- Wrap email in a service with a **mock adapter**: when `DEV_EMAIL_MOCK=true`, the bill is printed to the console and nothing is sent (useful when offline); when `false` (the DEFAULT) it really sends via SMTP using `DEV_SMTP_HOST` / `DEV_SMTP_PORT` / `DEV_SMTP_USER` / `DEV_SMTP_PASSWORD` / `DEV_SMTP_SENDER`. Fill the Gmail App Password to get real emails in dev.
+- **Free-tier note (read this):** Gmail free SMTP is rate-limited (≈500 recipients/day) — far above a restaurant demo's needs. Keep `DEV_EMAIL_MOCK=false` so bills are genuinely emailed in dev; flip it to `true` only when running offline.
 
 ---
 
@@ -315,11 +314,11 @@ Design: WebSocket connection per page; small manager in FastAPI (`ConnectionMana
 
 ### 10.2 Backend `.env` (FastAPI — DEV only)
 
-All keys are prefixed `DEV_` to make it explicit these are **dev/sandbox-only** settings (sandbox payment keys, free SMS key). Production would use entirely different live credentials — none of these ship to prod.
+All keys are prefixed `DEV_` to make it explicit these are **dev/sandbox-only** settings (sandbox payment keys, free SMTP credentials). Production would use entirely different live credentials — none of these ship to prod.
 
 | Variable | Example | Purpose |
 |---|---|---|
-| `DEV_APP_NAME` | `Soroco House` | Brand name shown in SMS bill |
+| `DEV_APP_NAME` | `restaurant-order-management` | App/brand name shown in email bill |
 | `DEV_PORT` | `8000` | Uvicorn bind port (`HOST` defaults to `0.0.0.0`) |
 | `DEV_DATABASE_URL` | `sqlite:///./restaurant.db` | DB driver/DSN (or Postgres locally) |
 | `DEV_JWT_SECRET_KEY` | `change-me-strong-secret` | HMAC signing secret for JWT (algorithm hardcoded `HS256`) |
@@ -332,14 +331,17 @@ All keys are prefixed `DEV_` to make it explicit these are **dev/sandbox-only** 
 | `DEV_PHONEPE_SALT_INDEX` | `1` | PhonePe salt index — appended to the X-VERIFY header as `checksum###saltIndex` (the callback URL is derived separately from `DEV_PORT`: `http://localhost:{DEV_PORT}/api/v1/payment`) |
 | `DEV_RAZORPAY_KEY_ID` | `rzp_test_xxxx` | Razorpay test-mode key id |
 | `DEV_RAZORPAY_KEY_SECRET` | (test secret) | Razorpay test-mode key secret |
-| `DEV_SMS_MOCK` | `true` | `true` → print bill to console, never send |
-| `DEV_FAST2SMS_API_KEY` | (free key) | Free Fast2SMS API key (Dev API section) |
-| `DEV_FAST2SMS_SENDER_ID` | `SOROCO` | Sender id for Fast2SMS Quick SMS route |
+| `DEV_EMAIL_MOCK` | `false` | `false` → really send email via SMTP (default); `true` → print to console |
+| `DEV_SMTP_HOST` | `smtp.gmail.com` | Free SMTP host (Gmail App Password) |
+| `DEV_SMTP_PORT` | `587` | SMTP port (587 = STARTTLS) |
+| `DEV_SMTP_USER` | (gmail address) | SMTP username, e.g. `restaurant.dev@gmail.com` |
+| `DEV_SMTP_PASSWORD` | (16-char app password) | SMTP password (Gmail App Password — needs 2FA) |
+| `DEV_SMTP_SENDER` | (same gmail) | From: address shown on the bill email |
 | `DEV_AUTH_RATE_LIMIT` | `5/min` | slowapi limit on `/auth/login` + `/auth/signup` per IP (5 attempts per minute) |
 
 ```dotenv
 # backend/.env — DEV/sandbox only. Do NOT reuse these keys in production.
-DEV_APP_NAME=Soroco House
+DEV_APP_NAME=restaurant-order-management
 DEV_PORT=8000
 DEV_DATABASE_URL=sqlite:///./restaurant.db
 DEV_JWT_SECRET_KEY=change-me-strong-secret
@@ -353,9 +355,12 @@ DEV_PHONEPE_MERCHANT_ID=MERCHANTUAT
 DEV_PHONEPE_BASE_URL=https://api-preprod.phonepe.com/apis/pg-sandbox
 DEV_PHONEPE_SALT_KEY=your-sandbox-salt-key
 DEV_PHONEPE_SALT_INDEX=1
-DEV_SMS_MOCK=true
-DEV_FAST2SMS_API_KEY=your-free-fast2sms-api-key
-DEV_FAST2SMS_SENDER_ID=SOROCO
+DEV_EMAIL_MOCK=false
+DEV_SMTP_HOST=smtp.gmail.com
+DEV_SMTP_PORT=587
+DEV_SMTP_USER=restaurant.dev@gmail.com
+DEV_SMTP_PASSWORD=your-16-char-app-password
+DEV_SMTP_SENDER=restaurant.dev@gmail.com
 DEV_AUTH_RATE_LIMIT=5/min
 ```
 
@@ -365,7 +370,7 @@ DEV_AUTH_RATE_LIMIT=5/min
 
 | Variable | Example | Purpose |
 |---|---|---|
-| `VITE_APP_NAME` | `Soroco House` | Brand name shown in UI |
+| `VITE_APP_NAME` | `restaurant-order-management` | Brand name shown in UI |
 | `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | REST API base (no trailing slash). Already contains the `/api/v1` prefix, so frontend code only writes short paths like `/menu`, `/payment` |
 | `VITE_WS_BASE_URL` | `ws://localhost:8000/api/v1` | WebSocket base (same backend). Connect to e.g. `ws://localhost:8000/api/v1/ws/menu` |
 | `VITE_RAZORPAY_KEY_ID` | `rzp_test_xxxx` | Razorpay checkout key id (client-side) — same test key as backend |
@@ -374,7 +379,7 @@ DEV_AUTH_RATE_LIMIT=5/min
 
 ```dotenv
 # frontend/.env.development sample
-VITE_APP_NAME=Soroco House
+VITE_APP_NAME=restaurant-order-management
 VITE_API_BASE_URL=http://localhost:8000/api/v1
 VITE_WS_BASE_URL=ws://localhost:8000/api/v1
 VITE_RAZORPAY_KEY_ID=rzp_test_xxxx
@@ -382,7 +387,7 @@ VITE_PAYMENT_METHODS=phonepay,razorpay
 VITE_IMAGE_BASE_URL=/images
 ```
 
-> **Rules:** never commit real secrets (`.env` in `.gitignore`, provide `.env.example` files). All backend keys carry the `DEV_` prefix because they are dev/sandbox-only — sandbox payment keys and the free Fast2SMS key must never be used in production. Keep the same `RAZORPAY_KEY_ID` client & server-side; PhonePe is entirely server-side so no PhonePe keys appear in the frontend.
+> **Rules:** never commit real secrets (`.env` in `.gitignore`, provide `.env.example` files). All backend keys carry the `DEV_` prefix because they are dev/sandbox-only — sandbox payment keys and the free SMTP credentials must never be used in production. Keep the same `RAZORPAY_KEY_ID` client & server-side; PhonePe is entirely server-side so no PhonePe keys appear in the frontend.
 
 ---
 
@@ -405,7 +410,7 @@ VITE_IMAGE_BASE_URL=/images
 
 - [ ] Customer browses `/menu`, + /− works locally, cart bar shows count + total.
 - [ ] `/cart` shows items, total, PhonePe/Razorpay selection; Pay asks table/name/phone.
-- [ ] Sandbox payment: success lands the order + SMS; cancel/fail returns friendly error with cart intact and **no DB order**.
+- [ ] Sandbox payment: success lands the order + email; cancel/fail returns friendly error with cart intact and **no DB order**.
 - [ ] `/orders` blocks unauthenticated → `/login`; login returns JWT with role; kitchen stream is live and FIFO; status buttons cycle In-Queue → Preparing → Prepared **and persist across page refresh / server restart**; marking Delivered moves the order to completed.
 - [ ] Staff menu controls add/remove/availability update over WS for all connected menu viewers and **persist `is_available` so a server restart keeps items unavailable**; backend rejects these without a valid token.
 - [ ] Menu items with a NULL `image_url` render the branded placeholder; setting `image_url` later shows the real image.
