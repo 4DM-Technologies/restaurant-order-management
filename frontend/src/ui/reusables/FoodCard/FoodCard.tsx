@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { Plus, Star, AlertCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, Star, AlertCircle, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useAppSelector, useAppDispatch } from '@/store/hooks.ts';
 import { addItem, updateQuantity } from '@/store/slices/cartSlice.ts';
 import type { MenuItemBO } from '@/types/menu/MenuItemBO.ts';
@@ -10,18 +10,42 @@ interface FoodCardProps {
   item: MenuItemBO;
   onAddToCart: (item: MenuItemBO) => void;
   onViewDetail: (item: MenuItemBO) => void;
+  isStaff?: boolean;
+  onEdit?: (item: MenuItemBO) => void;
+  onDelete?: (item: MenuItemBO) => void;
 }
 
-export default function FoodCard({ item, onAddToCart, onViewDetail }: FoodCardProps) {
+export default function FoodCard({
+  item,
+  onAddToCart,
+  onViewDetail,
+  isStaff = false,
+  onEdit,
+  onDelete,
+}: FoodCardProps) {
   const dispatch   = useAppDispatch();
   const cartItems  = useAppSelector((s) => s.cart.items);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   /* Find this item in the cart (match by menuItemId, no variant) */
   const cartEntry = cartItems.find(
     (ci) => ci.menuItemId === item.id && !ci.variantId,
   );
   const qty = cartEntry?.quantity ?? 0;
+
+  /* Close the staff menu on outside click */
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [menuOpen]);
 
   function handleAdd(e: React.MouseEvent) {
     e.stopPropagation();
@@ -54,12 +78,25 @@ export default function FoodCard({ item, onAddToCart, onViewDetail }: FoodCardPr
     dispatch(updateQuantity({ cartItemId: cartEntry.cartItemId, quantity: qty - 1 }));
   }
 
+  function handleEditClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onEdit?.(item);
+  }
+
+  function handleDeleteClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    setMenuOpen(false);
+    onDelete?.(item);
+  }
+
   return (
     <article
       onClick={() => onViewDetail(item)}
       className={[
         'card card-hover cursor-pointer group relative overflow-hidden',
-        !item.isAvailable ? 'opacity-60' : '',
+        !item.isAvailable && !isStaff ? 'opacity-60' : '',
+        !item.isAvailable ? 'grayscale-[0.2]' : '',
       ].join(' ')}
       aria-label={`${item.name}, ₹${item.price}`}
     >
@@ -94,6 +131,61 @@ export default function FoodCard({ item, onAddToCart, onViewDetail }: FoodCardPr
               <AlertCircle className="w-3 h-3" />
               Unavailable
             </span>
+          </div>
+        )}
+
+        {/* Staff three-dot menu (admin / employee only) */}
+        {isStaff && (
+          <div
+            ref={menuRef}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-1.5 right-1.5 z-20"
+          >
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={`Manage ${item.name}`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              className="w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm border border-soroco-linen
+                         flex items-center justify-center text-soroco-espresso
+                         shadow-warm-sm transition-all duration-150 hover:bg-white active:scale-90"
+            >
+              <MoreVertical className="w-4 h-4" />
+            </button>
+
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  role="menu"
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                  transition={{ duration: 0.14, ease: 'easeOut' }}
+                  className="absolute right-0 top-full mt-1.5 w-44 bg-white rounded-2xl
+                             border border-soroco-linen shadow-warm-md overflow-hidden z-50"
+                >
+                  <button
+                    role="menuitem"
+                    onClick={handleEditClick}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left font-body text-sm
+                               text-soroco-charcoal hover:bg-soroco-linen/40 transition-colors"
+                  >
+                    <Pencil className="w-4 h-4 text-soroco-amber" />
+                    Edit item
+                  </button>
+                  <div className="h-px bg-soroco-linen/60" />
+                  <button
+                    role="menuitem"
+                    onClick={handleDeleteClick}
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left font-body text-sm
+                               text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Remove item
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>

@@ -12,12 +12,16 @@ import {
   AlertCircle,
   ChevronDown,
   Check,
+  ChefHat,
 } from 'lucide-react';
 import Navbar from '@/ui/reusables/Navbar/Navbar.tsx';
 import CartBar from '@/ui/reusables/CartBar/CartBar.tsx';
 import FoodCard from '@/ui/reusables/FoodCard/FoodCard.tsx';
 import Modal from '@/ui/reusables/Modal/Modal.tsx';
 import BottomSheet from '@/ui/reusables/BottomSheet/BottomSheet.tsx';
+import ConfirmDialog from '@/ui/reusables/ConfirmDialog/ConfirmDialog.tsx';
+import MenuEditorModal from '@/ui/screens/MenuScreen/MenuEditorModal.tsx';
+import { MENU_CATEGORIES } from '@/services/screens/menuScreenService/menuData.ts';
 import { useMenuScreenVM } from '@/ui/screens/MenuScreen/MenuScreen.vm.ts';
 import type { MenuItemBO, MenuItemVariantBO, MenuItemAddonBO } from '@/types/menu/MenuItemBO.ts';
 
@@ -528,6 +532,28 @@ export default function MenuScreen() {
       {/* Page content — offset for fixed navbar */}
       <div style={{ paddingTop: 72 }}>
 
+        {/* Staff toolbar — Add New Item (admin / employee only) */}
+        {vm.isStaff && !vm.isLoading && (
+          <div className="bg-white/70 border-b border-soroco-linen backdrop-blur-sm">
+            <div className="section-container py-3 flex items-center justify-between gap-3">
+              <p className="hidden sm:flex items-center gap-2 font-body text-sm text-soroco-mocha">
+                <ChefHat className="w-4 h-4 text-soroco-amber" />
+                Menu Management
+                <span className="text-soroco-tan">·</span>
+                <span className="text-soroco-tan">You can add, edit &amp; remove items</span>
+              </p>
+              <motion.button
+                whileTap={{ scale: 0.96 }}
+                onClick={vm.openAddEditor}
+                className="btn-primary text-sm py-2 px-4 ml-auto sm:ml-0"
+              >
+                <Plus className="w-4 h-4" />
+                Add New Item
+              </motion.button>
+            </div>
+          </div>
+        )}
+
         {/* Category navigation — sticky below navbar */}
         {!vm.isLoading && vm.sections.length > 0 && (
           <CategoryNav
@@ -588,6 +614,9 @@ export default function MenuScreen() {
                           item={item}
                           onAddToCart={vm.handleQuickAddToCart}
                           onViewDetail={vm.handleViewDetail}
+                          isStaff={vm.isStaff}
+                          onEdit={vm.openEditEditor}
+                          onDelete={vm.openDeleteDialog}
                         />
                       </motion.div>
                     ))}
@@ -636,6 +665,29 @@ export default function MenuScreen() {
 
       {/* Sticky cart bar */}
       <CartBar />
+
+      {/* Add / Edit menu item modal (staff only) */}
+      <MenuEditorModal
+        isOpen={vm.isEditorOpen}
+        mode={vm.editorMode}
+        item={vm.editorItem}
+        categories={MENU_CATEGORIES}
+        onClose={vm.closeEditor}
+        onSave={vm.handleSaveEditor}
+        isSaving={vm.isSaving}
+        error={vm.editorError}
+      />
+
+      {/* Remove item confirmation (staff only) */}
+      <ConfirmDialog
+        isOpen={vm.isDeleteDialogOpen}
+        onClose={() => vm.setIsDeleteDialogOpen(false)}
+        onConfirm={vm.handleDeleteItem}
+        title="Remove Menu Item"
+        message={`Are you sure you want to remove "${vm.itemToDelete?.name ?? 'this item'}" from the menu? This action cannot be undone.`}
+        confirmLabel="Remove"
+        isDanger
+      />
     </div>
   );
 }

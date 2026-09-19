@@ -3,9 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { menuScreenService } from '@/services/screens/menuScreenService/MenuScreenService.ts';
 import { MENU_CATEGORIES } from '@/services/screens/menuScreenService/menuData.ts';
 import { useAppSelector, useAppDispatch } from '@/store/hooks.ts';
-import { addItem } from '@/store/slices/cartSlice.ts';
+import { addItem, removeItem } from '@/store/slices/cartSlice.ts';
+import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 import type { MenuItemBO, MenuItemVariantBO, MenuItemAddonBO } from '@/types/menu/MenuItemBO.ts';
 import type { CartItemBO } from '@/types/cart/CartItemBO.ts';
+import type { MenuEditorData } from '@/ui/screens/MenuScreen/MenuEditorModal.tsx';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export interface CategoryMeta {
@@ -37,26 +39,53 @@ export function useMenuScreenVM() {
   const [quantity,         setQuantity]         = useState(1);
   const [specialNote,      setSpecialNote]      = useState('');
 
-  // Cart from Redux
+  // Menu editor (staff: add / edit) state
+  const [isEditorOpen,       setIsEditorOpen]  = useState(false);
+  const [editorMode,         setEditorMode]    = useState<'add' | 'edit'>('add');
+  const [editorItem,         setEditorItem]    = useState<MenuItemBO | null>(null);
+  const [isSaving,           setIsSaving]      = useState(false);
+  const [editorError,        setEditorError]   = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [itemToDelete,       setItemToDelete]  = useState<MenuItemBO | null>(null);
+
+  // Cart + auth from Redux
   const cartItems = useAppSelector((s) => s.cart.items);
+  const { isAuthenticated, user } = useAppSelector((s) => s.auth);
 
   // Refs for section scroll targets
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
   const categoryNavRef = useRef<HTMLDivElement | null>(null);
   const isScrollingProgrammatically = useRef(false);
 
+  // Staff role check — three-dot controls + add button visible only to staff
+  const isStaff =
+    isAuthenticated &&
+    !!user &&
+    (user.role === UserRoleENUM.ADMIN || user.role === UserRoleENUM.EMPLOYEE);
+
   // ── Load menu data ─────────────────────────────────────────────────────────
+  const buildSections = useCallback((allItems: MenuItemBO[]): MenuSection[] => {
+    return MENU_CATEGORIES.map((cat) => ({
+      category: cat,
+      items: allItems.filter((item) => item.category === cat.id),
+    })).filter((s) => s.items.length > 0);
+  }, []);
+
+  const refreshMenu = useCallback(async () => {
+    try {
+      const allItems = await menuScreenService.getMenu();
+      setSections(buildSections(allItems));
+    } catch (err) {
+      console.error('[MenuScreen] Failed to refresh menu:', err);
+    }
+  }, [buildSections]);
+
   useEffect(() => {
     async function loadMenu() {
       setIsLoading(true);
       try {
-        const [allItems] = await Promise.all([menuScreenService.getMenu()]);
-
-        const built: MenuSection[] = MENU_CATEGORIES.map((cat) => ({
-          category: cat,
-          items: allItems.filter((item) => item.category === cat.id),
-        })).filter((s) => s.items.length > 0);
-
+        const allItems = await menuScreenService.getMenu();
+        const built = buildSections(allItems);
         setSections(built);
 
         // Set initial active category from query param or first section
@@ -238,6 +267,71 @@ export function useMenuScreenVM() {
     [],
   );
 
+  // ── Menu editor (staff): open / close / save ──────────────────────────────
+  const openAddEditor = useCallback(() => {
+    setEditorMode('add');
+    setEditorItem(null);
+    setEditorError(null);
+    setIsEditorOpen(true);
+  }, []);
+
+  const openEditEditor = useCallback((item: MenuItemBO) => {
+    setEditorMode('edit');
+    setEditorItem(item);
+    setEditorError(null);
+    setIsEditorOpen(true);
+  }, []);
+
+  const closeEditor = useCallback(() => {
+    setIsEditorOpen(false);
+    setTimeout(() => setEditorItem(null), 300);
+  }, []);
+
+  const handleSaveEditor = useCallback(
+    async (data: MenuEditorData) => {
+      setIsSaving(true);
+      setEditorError(null);
+      try {
+        if (editorMode === 'add') {
+          await menuScreenService.addMenuItem(data);
+        } else if (editorItem) {
+          await menuScreenService.updateMenuItem(editorItem.id, data);
+        }
+        await refreshMenu();
+        setIsEditorOpen(false);
+        setTimeout(() => setEditorItem(null), 300);
+      } catch (err) {
+        setEditorError(err instanceof Error ? err.message : 'Failed to save menu item.');
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [editorMode, editorItem, refreshMenu],
+  );
+
+  // ── Delete (staff) ─────────────────────────────────────────────────────────
+  const openDeleteDialog = useCallback((item: MenuItemBO) => {
+    setItemToDelete(item);
+    setIsDeleteDialogOpen(true);
+  }, []);
+
+  const handleDeleteItem = useCallback(async () => {
+    if (!itemToDelete) return;
+    try {
+      await menuScreenService.deleteMenuItem(itemToDelete.id);
+      // Drop the removed item from any cart that may hold it
+      cartItems
+        .filter((ci) => ci.menuItemId === itemToDelete.id)
+        .forEach((ci) => dispatch(removeItem(ci.cartItemId)));
+      await refreshMenu();
+    } catch (err) {
+      console.error('[MenuScreen] Failed to delete item:', err);
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setItemToDelete(null);
+    }
+  }, [itemToDelete, cartItems, dispatch, refreshMenu]);
+
   // ── Register section ref ───────────────────────────────────────────────────
   const registerSectionRef = useCallback(
     (categoryId: string) => (el: HTMLElement | null) => {
@@ -253,6 +347,9 @@ export function useMenuScreenVM() {
     activeCategory,
     cartItems,
 
+    // Auth / role
+    isStaff,
+
     // Detail modal state
     selectedItem,
     isDetailOpen,
@@ -260,6 +357,18 @@ export function useMenuScreenVM() {
     selectedAddons,
     quantity,
     specialNote,
+
+    // Editor modal state
+    isEditorOpen,
+    editorMode,
+    editorItem,
+    isSaving,
+    editorError,
+
+    // Delete dialog state
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    itemToDelete,
 
     // Computed
     getDetailTotal,
@@ -274,6 +383,14 @@ export function useMenuScreenVM() {
     setSpecialNote,
     handleAddToCart,
     handleQuickAddToCart,
+
+    // Staff handlers
+    openAddEditor,
+    openEditEditor,
+    closeEditor,
+    handleSaveEditor,
+    openDeleteDialog,
+    handleDeleteItem,
 
     // Refs
     categoryNavRef,

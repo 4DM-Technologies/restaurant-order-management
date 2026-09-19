@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -43,12 +43,14 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center justify-between p-6 border-b border-white/10">
-        <div className="flex items-center gap-3">
+        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
           <div className="w-9 h-9 bg-soroco-amber rounded-full flex items-center justify-center shrink-0">
             <Coffee className="w-4 h-4 text-white" />
           </div>
-          <span className="font-display text-lg font-bold text-soroco-cream">Soroco House</span>
-        </div>
+          <span className="font-display text-lg font-bold tracking-tight text-soroco-cream">
+            Soroco House
+          </span>
+        </Link>
         {onClose && (
           <button
             onClick={onClose}
@@ -162,12 +164,14 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             <Menu className="w-5 h-5 text-soroco-espresso" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-soroco-amber rounded-full flex items-center justify-center">
-              <Coffee className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-display font-bold text-soroco-espresso text-base">
-              {title ?? 'Soroco House'}
-            </span>
+            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <div className="w-7 h-7 bg-soroco-amber rounded-full flex items-center justify-center">
+                <Coffee className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="font-display font-bold tracking-tight text-soroco-espresso text-base">
+                {title ?? 'Soroco House'}
+              </span>
+            </Link>
           </div>
         </header>
 
