@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     app_name: str = "restaurant-order-management"
     host: str = "0.0.0.0"
     port: int = 8000
+    # Public base URL shown in the startup banner (e.g. https://api.example.com).
+    public_url: str = ""
 
     # ── Database ─────────────────────────────────────────────────────────────
     database_url: str = "sqlite:///./data/restaurant.db"
