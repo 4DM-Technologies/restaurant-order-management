@@ -1,0 +1,1575 @@
+openapi: 3.0.0
+info:
+  title: Soroco House — Restaurant Order Management API
+  version: 1.0.0
+  description: |
+    Backend API for the Soroco House QR-menu ordering system.
+
+    Handles:
+    - Customer flows: menu browsing, order placement with sandbox/mock payment,
+      bill email.
+    - Staff flows: login/signup (JWT with role), kitchen order board (FIFO),
+      live updates over WebSocket.
+    - Admin flows: menu CRUD, image upload, employee management, order history
+      + CSV export.
+
+    Conventions:
+    - All JSON routes are under /api/v1 (this server URL). Exceptions: GET /health
+      (raw health object) and the static /images mount.
+    - Every JSON success uses the envelope {"success": true, "data": ...};
+      every failure uses {"success": false, "message", "code", "detail"}.
+    - Enums are stored as plain VARCHAR values (employee/admin, phonepay/razorpay,
+      success/failed/cancelled, in_queue/preparing/prepared/delivered,
+      ordered/delivered, standard/small/large).
+    - Menu create/delete and image upload are ADMIN only; menu PATCH and kitchen
+      routes allow employee + admin.
+    - Prices are always recomputed server-side at POST /payments (5% tax).
+    - Rate limits: auth 5/min, upload 5/min, payments 20/min.
+    - Real-time events stream over WebSockets (documented in design/api-docs.md):
+      ws /api/v1/ws/menu (public, frame {"type":"menu_updated"}) and
+      ws /api/v1/ws/orders?token=<JWT> (frame {"type":"orders_updated","data":[...]}).
+  contact:
+    name: Soroco House Dev Team
+
+servers:
+  - url: "http://localhost:8000/api/v1"
+
+tags:
+  - name: Health
+  - name: Auth
+  - name: Menu
+  - name: Uploads
+  - name: Images
+  - name: Payment
+  - name: Orders
+  - name: Admin
+  - name: WebSockets
+
+paths:
+  # ─── Health ───
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Service and DB status (raw — no envelope).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, database]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok, degraded]
+                  database:
+                    type: string
+                    enum: [ok, error]
+              examples:
+                healthy:
+                  value: { status: "ok", database: "ok" }
+
+  # ─── Auth ───
+  /auth/login:
+    post:
+      summary: Staff login
+      operationId: login
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              admin:
+                value: { email: "thameem@test.com", password: "admin123" }
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data:
+                      access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      token_type: "bearer"
+                      account_uuid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                      name: "Thameem"
+                      email: "thameem@test.com"
+                      role: "admin"
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '429':
+          $ref: '#/components/responses/rate_limited'
+
+  /auth/signup:
+    post:
+      summary: Complete staff signup (set password)
+      description: |
+        Pre-created staff accounts have a NULL password. Signup accepts the
+        registered email and sets the password (hashed server-side). On success
+        a JWT (with the account role) is returned. Password confirm is
+        client-side only and is NOT part of the payload.
+      operationId: signup
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+            examples:
+              valid:
+                value: { email: "employee@test.com", password: "strongpass1", confirm: "strongpass1" }
+      responses:
+        '200':
+          description: Password set, JWT issued (same shape as login)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data:
+                      access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      token_type: "bearer"
+                      account_uuid: "e5f6g7h8-9012-3456-7890-abcdef123456"
+                      name: "Soroco Employee"
+                      email: "employee@test.com"
+                      role: "employee"
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
+        '429':
+          $ref: '#/components/responses/rate_limited'
+
+  /auth/check:
+    get:
+      summary: Check whether an email is a staff account (signup step 1)
+      operationId: checkAccount
+      tags: [Auth]
+      security: []
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+            example: "employee@test.com"
+      responses:
+        '200':
+          description: Always 200 — reports existence and password state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                exists_without_password:
+                  value:
+                    success: true
+                    data:
+                      exists: true
+                      has_password: false
+        '429':
+          $ref: '#/components/responses/rate_limited'
+
+  /auth/me:
+    get:
+      summary: Current authenticated user
+      operationId: getCurrentUser
+      tags: [Auth]
+      security:
+        - bearer_auth: []
+      responses:
+        '200':
+          description: Current user + role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data:
+                      account_uuid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                      name: "Thameem"
+                      email: "thameem@test.com"
+                      role: "admin"
+        '401':
+          $ref: '#/components/responses/unauthorized'
+
+  # ─── Menu ───
+  /menu:
+    get:
+      summary: List menu grouped by category
+      description: |
+        Public. Returns the full menu grouped by category. Unavailable items
+        (is_available=false) are still returned — greyed out client-side for
+        customers, visible to staff so they can re-enable.
+      operationId: listMenu
+      tags: [Menu]
+      security: []
+      responses:
+        '200':
+          description: Menu groups
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data:
+                      - category: "Hot Luxury Teas"
+                        items:
+                          - menu_uuid: "m1111111-1111-1111-1111-111111111111"
+                            menu_id: 1
+                            category: "Hot Luxury Teas"
+                            item_name: "Darjeeling First Flush"
+                            item_description: "Light, floral & muscatel."
+                            standard_price: 280.0
+                            small_price: null
+                            large_price: null
+                            image_url: "https://images.unsplash.com/...?w=640&q=85"
+                            is_available: true
+                      - category: "Cold Brew"
+                        items:
+                          - menu_uuid: "m2222222-2222-2222-2222-222222222222"
+                            menu_id: 9
+                            category: "Cold Brew"
+                            item_name: "Signature Cold Brew"
+                            item_description: "16-hour slow-steeped cold brew."
+                            standard_price: 220.0
+                            small_price: 220.0
+                            large_price: 320.0
+                            image_url: null
+                            is_available: true
+
+    post:
+      summary: Add a new menu item
+      description: ADMIN only. Broadcasts menu_updated to /ws/menu.
+      operationId: addMenuItem
+      tags: [Menu]
+      security:
+        - bearer_auth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuItemCreate'
+            examples:
+              valid:
+                value:
+                  name: "Mango Frappe"
+                  category: "Frappe"
+                  description: "Seasonal"
+                  standard_price: 300.0
+                  small_price: null
+                  large_price: 360.0
+      responses:
+        '200':
+          description: Menu item created (200 — not 201)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                created:
+                  value:
+                    success: true
+                    data:
+                      menu_uuid: "m3333333-3333-3333-3333-333333333333"
+                      menu_id: 25
+                      category: "Frappe"
+                      item_name: "Mango Frappe"
+                      item_description: "Seasonal"
+                      standard_price: 300.0
+                      small_price: null
+                      large_price: 360.0
+                      image_url: null
+                      is_available: true
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '409':
+          $ref: '#/components/responses/conflict'
+        '422':
+          $ref: '#/components/responses/validation_error'
+
+  /menu/{menu_uuid}:
+    patch:
+      summary: Update a menu item (availability, prices, text)
+      description: Employee + admin. All fields optional. Broadcasts to /ws/menu.
+      operationId: updateMenuItem
+      tags: [Menu]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: menu_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "m1111111-1111-1111-1111-111111111111"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MenuItemPatch'
+            examples:
+              toggle:
+                value: { is_available: false }
+              prices:
+                value: { small_price: 240.0, large_price: 340.0 }
+      responses:
+        '200':
+          description: Menu item updated (full item)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    success: true
+                    data:
+                      menu_uuid: "m1111111-1111-1111-1111-111111111111"
+                      menu_id: 1
+                      category: "Hot Luxury Teas"
+                      item_name: "Darjeeling First Flush"
+                      item_description: "Light, floral & muscatel."
+                      standard_price: 280.0
+                      small_price: null
+                      large_price: null
+                      image_url: null
+                      is_available: false
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '422':
+          $ref: '#/components/responses/validation_error'
+
+    delete:
+      summary: Remove a menu item
+      description: ADMIN only. Broadcasts to /ws/menu.
+      operationId: deleteMenuItem
+      tags: [Menu]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: menu_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "m1111111-1111-1111-1111-111111111111"
+      responses:
+        '200':
+          description: Menu item deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessageEnvelope'
+              examples:
+                deleted:
+                  value:
+                    success: true
+                    data:
+                      message: "Menu item deleted"
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+
+  # ─── Uploads ───
+  /upload/image:
+    post:
+      summary: Upload a food photo
+      description: |
+        ADMIN only, 5/min. Validates JPEG/PNG/WebP, resizes to max 640px and
+        re-encodes to WebP before storing (local uploads dir or S3).
+      operationId: uploadImage
+      tags: [Uploads]
+      security:
+        - bearer_auth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                item_name:
+                  type: string
+                  default: "food"
+      responses:
+        '200':
+          description: Uploaded image URL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data:
+                      image_url: "/api/v1/images/a1b2c3d4-e5f6-7890-abcd.webp"
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '422':
+          $ref: '#/components/responses/validation_error'
+        '429':
+          $ref: '#/components/responses/rate_limited'
+
+  # ─── Images ───
+  /images/{filename}:
+    get:
+      summary: Stream an uploaded image
+      description: |
+        Streams the object when DEV_STORAGE_DRIVER=s3 (private bucket). With the
+        local driver this route returns 404 — local uploads are served by the
+        static /images mount instead.
+      operationId: serveImage
+      tags: [Images]
+      security: []
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "a1b2c3d4-e5f6-7890-abcd.webp"
+      responses:
+        '200':
+          description: Image bytes (image/webp, cacheable for 1 year)
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/not_found'
+
+  # ─── Payment ───
+  /payments:
+    post:
+      summary: Place an order from the gateway result
+      description: |
+        Public, 20/min. Frontend posts the gateway result; the backend is the
+        source of truth for pricing (recomputes line totals, adds 5% tax),
+        inserts orders + order_items idempotently on order_ref, emails the bill
+        and broadcasts orders_updated to /ws/orders.
+
+        gateway_status:
+        - success   -> order created, returns payment_status="success" + order
+        - failed    -> no rows, returns payment_status="failed"
+        - cancelled -> no rows, returns payment_status="cancelled"
+      operationId: createPayment
+      tags: [Payment]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+            examples:
+              success:
+                summary: Gateway returned success
+                value:
+                  order_ref: "or_abc123def456"
+                  gateway_status: "success"
+                  payment_method: "razorpay"
+                  transaction_id: "pay_PkF21XS9mup1b9"
+                  table_name: "A1"
+                  customer_name: "Alex"
+                  phone_number: "+919876543210"
+                  customer_email: "alex@example.com"
+                  items:
+                    - menu_uuid: "m2222222-2222-2222-2222-222222222222"
+                      selected_size: "large"
+                      quantity: 2
+                    - menu_uuid: "m1111111-1111-1111-1111-111111111111"
+                      quantity: 1
+              cancelled:
+                summary: Customer cancelled on the gateway
+                value:
+                  order_ref: "or_abc123def456"
+                  gateway_status: "cancelled"
+                  payment_method: "phonepay"
+                  table_name: "A1"
+                  customer_name: "Alex"
+                  customer_email: "alex@example.com"
+                  items:
+                    - menu_uuid: "m1111111-1111-1111-1111-111111111111"
+                      quantity: 1
+      responses:
+        '200':
+          description: Success or graceful failure (both envelope 200)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PaymentSuccessData'
+                  - $ref: '#/components/schemas/PaymentFailureData'
+              examples:
+                order_placed:
+                  summary: Order created
+                  value:
+                    success: true
+                    data:
+                      payment_status: "success"
+                      order_number: 12
+                      total: 483.0
+                      order:
+                        order_uuid: "o9999999-9999-9999-9999-999999999999"
+                        order_id: 5
+                        order_number: 12
+                        table_name: "A1"
+                        customer_name: "Alex"
+                        phone_number: "+919876543210"
+                        payment_method: "razorpay"
+                        payment_status: "success"
+                        payment_transaction_id: "pay_PkF21XS9mup1b9"
+                        kitchen_status: "in_queue"
+                        order_status: "ordered"
+                        total_price: 483.0
+                        subtotal: 460.0
+                        tax: 23.0
+                        created_at: "2026-09-20T10:36:12.123456+00:00"
+                        items:
+                          - menu_uuid: "m2222222-2222-2222-2222-222222222222"
+                            item_name: "Signature Cold Brew"
+                            selected_size: "large"
+                            quantity: 2
+                            unit_price: 220.0
+                            line_total: 440.0
+                payment_failed:
+                  summary: Payment failed — no rows written
+                  value:
+                    success: true
+                    data:
+                      payment_status: "cancelled"
+                      message: "Payment failed/cancelled, nothing was charged"
+        '422':
+          $ref: '#/components/responses/validation_error'
+        '429':
+          $ref: '#/components/responses/rate_limited'
+
+  # ─── Orders (kitchen) ───
+  /orders/kitchen:
+    get:
+      summary: List kitchen orders FIFO
+      description: |
+        Employee + admin. Returns all orders, oldest first. Each order carries
+        its persisted kitchen/order status so the board restores state after a
+        refresh.
+      operationId: listKitchenOrders
+      tags: [Orders]
+      security:
+        - bearer_auth: []
+      responses:
+        '200':
+          description: Array of serialized orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data:
+                      - order_uuid: "o9999999-9999-9999-9999-999999999999"
+                        order_id: 5
+                        order_number: 12
+                        table_name: "A1"
+                        customer_name: "Alex"
+                        phone_number: "+919876543210"
+                        payment_method: "razorpay"
+                        payment_status: "success"
+                        payment_transaction_id: "pay_PkF21XS9mup1b9"
+                        kitchen_status: "in_queue"
+                        order_status: "ordered"
+                        total_price: 483.0
+                        subtotal: 460.0
+                        tax: 23.0
+                        created_at: "2026-09-20T10:36:12.123456+00:00"
+                        items:
+                          - menu_uuid: "m2222222-2222-2222-2222-222222222222"
+                            item_name: "Signature Cold Brew"
+                            selected_size: "large"
+                            quantity: 2
+                            unit_price: 220.0
+                            line_total: 440.0
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+
+  /orders/{order_uuid}:
+    patch:
+      summary: Update order status (kitchen board)
+      description: |
+        Employee + admin. Updates kitchen_status
+        (in_queue | preparing | prepared | delivered) and/or order_status
+        (ordered | delivered). Enum-only validation — no enforced transition
+        order. Broadcasts the fresh kitchen list to /ws/orders.
+      operationId: updateOrderStatus
+      tags: [Orders]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: order_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "o9999999-9999-9999-9999-999999999999"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPatch'
+            examples:
+              preparing:
+                value: { kitchen_status: "preparing" }
+              delivered:
+                value: { order_status: "delivered" }
+      responses:
+        '200':
+          description: Full updated order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                updated:
+                  value:
+                    success: true
+                    data:
+                      order_uuid: "o9999999-9999-9999-9999-999999999999"
+                      order_id: 5
+                      order_number: 12
+                      table_name: "A1"
+                      customer_name: "Alex"
+                      phone_number: "+919876543210"
+                      payment_method: "razorpay"
+                      payment_status: "success"
+                      payment_transaction_id: "pay_PkF21XS9mup1b9"
+                      kitchen_status: "preparing"
+                      order_status: "ordered"
+                      total_price: 483.0
+                      subtotal: 460.0
+                      tax: 23.0
+                      created_at: "2026-09-20T10:36:12.123456+00:00"
+                      items: []
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '422':
+          $ref: '#/components/responses/validation_error'
+
+  # ─── Admin: Employees ───
+  /admin/employees:
+    get:
+      summary: List all staff accounts
+      operationId: listEmployees
+      tags: [Admin]
+      security:
+        - bearer_auth: []
+      responses:
+        '200':
+          description: Array of accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data:
+                      - account_uuid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+                        account_id: 1
+                        account_name: "Thameem"
+                        account_email: "thameem@test.com"
+                        account_role: "admin"
+                        created_at: "2026-09-20T09:00:00+00:00"
+                        has_password: true
+                        can_delete: false
+                      - account_uuid: "e5f6g7h8-9012-3456-7890-abcdef123456"
+                        account_id: 2
+                        account_name: "Soroco Employee"
+                        account_email: "employee@test.com"
+                        account_role: "employee"
+                        created_at: "2026-09-20T09:00:00+00:00"
+                        has_password: false
+                        can_delete: true
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+
+    post:
+      summary: Create a staff account
+      description: Creates an employee account with NULL password (they sign up later).
+      operationId: createEmployee
+      tags: [Admin]
+      security:
+        - bearer_auth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeCreate'
+            examples:
+              valid:
+                value: { name: "New Staff", email: "new@test.com" }
+      responses:
+        '200':
+          description: Account created (200 — not 201)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                created:
+                  value:
+                    success: true
+                    data:
+                      account_uuid: "f6f7f8f9-0123-4567-8901-abcdef123456"
+                      account_id: 3
+                      account_name: "New Staff"
+                      account_email: "new@test.com"
+                      account_role: "employee"
+                      created_at: "2026-09-20T10:00:00+00:00"
+                      has_password: false
+                      can_delete: true
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '409':
+          $ref: '#/components/responses/conflict'
+        '422':
+          $ref: '#/components/responses/validation_error'
+
+  /admin/employees/{account_uuid}:
+    patch:
+      summary: Update a staff account (name / email)
+      operationId: updateEmployee
+      tags: [Admin]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: account_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "e5f6g7h8-9012-3456-7890-abcdef123456"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeePatch'
+            examples:
+              valid:
+                value: { name: "Soroco Staff", email: "staff@test.com" }
+      responses:
+        '200':
+          description: Updated account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
+        '422':
+          $ref: '#/components/responses/validation_error'
+
+    delete:
+      summary: Delete a staff account
+      description: An admin account can never be deleted through this endpoint.
+      operationId: deleteEmployee
+      tags: [Admin]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: account_uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: "e5f6g7h8-9012-3456-7890-abcdef123456"
+      responses:
+        '200':
+          description: Account removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessMessageEnvelope'
+              examples:
+                deleted:
+                  value:
+                    success: true
+                    data:
+                      message: "Employee removed"
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '404':
+          $ref: '#/components/responses/not_found'
+        '409':
+          $ref: '#/components/responses/conflict'
+
+  # ─── Admin: Order history ───
+  /admin/orders:
+    get:
+      summary: List orders by date range + status
+      description: |
+        Dates use YYYY-MM-DD. to_date is inclusive (end of day).
+        order_status: ordered | delivered (omit for all).
+      operationId: getOrderHistory
+      tags: [Admin]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: from_date
+          in: query
+          required: false
+          description: Range start (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+            example: "2026-09-01"
+        - name: to_date
+          in: query
+          required: false
+          description: Range end, inclusive (YYYY-MM-DD).
+          schema:
+            type: string
+            format: date
+            example: "2026-09-20"
+        - name: order_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ordered, delivered]
+            example: "delivered"
+      responses:
+        '200':
+          description: Array of serialized orders (same shape as kitchen list)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessEnvelope'
+              examples:
+                ok:
+                  value:
+                    success: true
+                    data: []
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '422':
+          $ref: '#/components/responses/validation_error'
+
+  /admin/orders/export:
+    get:
+      summary: Export order history as CSV
+      description: |
+        Same filters as GET /admin/orders. Returns a text/csv attachment
+        (NOT the JSON envelope). Columns: Order Number, Ordered At, Table,
+        Customer, Items, Quantity, Subtotal (INR), Tax (INR), Total (INR),
+        Payment Method, Payment Status, Kitchen Status, Order Status.
+      operationId: exportOrderHistoryCsv
+      tags: [Admin]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: from_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-09-01"
+        - name: to_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-09-20"
+        - name: order_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ordered, delivered]
+            example: "delivered"
+      responses:
+        '200':
+          description: CSV file download
+          headers:
+            Content-Disposition:
+              description: 'attachment; filename="soroco-order-history.csv"'
+              schema:
+                type: string
+          content:
+            text/csv:
+              schema:
+                type: string
+              examples:
+                csv:
+                  value: |
+                    Order Number,Ordered At,Table,Customer,Items,Quantity,Subtotal (INR),Tax (INR),Total (INR),Payment Method,Payment Status,Kitchen Status,Order Status
+                    12,2026-09-20T10:36:12.123456+00:00,A1,Alex,"Signature Cold Brew (large) x2; Darjeeling First Flush x1",3,460.00,23.00,483.00,razorpay,success,in_queue,ordered
+        '401':
+          $ref: '#/components/responses/unauthorized'
+        '403':
+          $ref: '#/components/responses/forbidden'
+        '422':
+          $ref: '#/components/responses/validation_error'
+
+  # ─── WebSockets (documentation only — OpenAPI cannot express WS) ───
+  /ws/menu:
+    get:
+      summary: Public live menu feed (WebSocket)
+      description: |
+        Not a real REST call. WebSocket at ws://localhost:8000/api/v1/ws/menu.
+        Server sends {"type":"menu_updated"} after any menu change; clients
+        re-fetch GET /menu. See design/api-docs.md §5.
+      operationId: wsMenu
+      tags: [WebSockets]
+      security: []
+      responses:
+        '101':
+          description: Connection upgrade. Unauthorized disconnects are not applicable (public).
+
+  /ws/orders:
+    get:
+      summary: Authenticated kitchen feed (WebSocket)
+      description: |
+        Not a real REST call. WebSocket at
+        ws://localhost:8000/api/v1/ws/orders?token=<JWT>. Server sends
+        {"type":"orders_updated","data":[...full kitchen list...]}. Invalid/missing
+        token closes with code 4401. See design/api-docs.md §5.
+      operationId: wsOrders
+      tags: [WebSockets]
+      security:
+        - bearer_auth: []
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '101':
+          description: Connection upgrade (JWT validated on handshake).
+
+components:
+  securitySchemes:
+    bearer_auth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT issued by POST /auth/login or POST /auth/signup.
+
+  responses:
+    unauthorized:
+      description: Missing, invalid or expired token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            bad_token:
+              value:
+                success: false
+                message: "Not authenticated"
+                code: "UNAUTHORIZED"
+                detail: null
+    forbidden:
+      description: Role insufficient for this route
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            role:
+              value:
+                success: false
+                message: "You don't have permission to perform this action"
+                code: "FORBIDDEN"
+                detail: null
+    not_found:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            missing:
+              value:
+                success: false
+                message: "Menu item not found"
+                code: "NOT_FOUND"
+                detail: null
+    conflict:
+      description: Duplicate / forbidden-state conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            dup:
+              value:
+                success: false
+                message: "An account already exists for that email"
+                code: "CONFLICT"
+                detail: null
+    validation_error:
+      description: Pydantic or business-rule validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            invalid:
+              value:
+                success: false
+                message: "phone_number: Enter a valid phone number (10 digits)"
+                code: "VALIDATION_ERROR"
+                detail: null
+    rate_limited:
+      description: SlowAPI rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            limited:
+              value:
+                success: false
+                message: "Too many attempts. Please wait and try again."
+                code: "RATE_LIMITED"
+                detail: null
+    internal_error:
+      description: Unhandled server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            boom:
+              value:
+                success: false
+                message: "Something went wrong on our side. Please try again."
+                code: "INTERNAL_ERROR"
+                detail: null
+
+  schemas:
+    SuccessEnvelope:
+      type: object
+      description: Standard success envelope — data carries the payload.
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+          example: true
+        data:
+          nullable: true
+          description: Payload (object, array, string or number depending on endpoint).
+
+    SuccessMessageEnvelope:
+      type: object
+      description: Success envelope for message-only responses (ok_message helper).
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+          example: true
+        data:
+          type: object
+          required: [message]
+          properties:
+            message:
+              type: string
+              example: "Employee removed"
+
+    ErrorEnvelope:
+      type: object
+      description: Standard error envelope for every non-2xx JSON response.
+      required: [success, message, code, detail]
+      properties:
+        success:
+          type: boolean
+          const: false
+          example: false
+        message:
+          type: string
+          example: "Menu item not found"
+        code:
+          type: string
+          nullable: true
+          enum: [UNAUTHORIZED, INVALID_CREDENTIALS, FORBIDDEN, SIGNUP_PENDING, NOT_FOUND, CONFLICT, VALIDATION_ERROR, RATE_LIMITED, INTERNAL_ERROR, FORGED_CALLBACK]
+          example: "NOT_FOUND"
+        detail:
+          type: string
+          nullable: true
+          example: null
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    SignupRequest:
+      type: object
+      required: [email, password, confirm]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        confirm:
+          type: string
+          description: Must equal password (validated server-side)
+
+    AuthResult:
+      type: object
+      required: [access_token, token_type, account_uuid, name, email, role]
+      properties:
+        access_token:
+          type: string
+        token_type:
+          type: string
+          const: bearer
+        account_uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [employee, admin]
+
+    CurrentUser:
+      type: object
+      required: [account_uuid, name, email, role]
+      properties:
+        account_uuid:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [employee, admin]
+
+    MenuItemCreate:
+      type: object
+      description: |
+        Request field names are name/description (responses use
+        item_name/item_description). A convenience `price` alias maps to
+        standard_price. At least one price is required.
+      required: [name, category]
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+          nullable: true
+          description: Alias for standard_price
+        standard_price:
+          type: number
+          nullable: true
+        small_price:
+          type: number
+          nullable: true
+        large_price:
+          type: number
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+
+    MenuItemPatch:
+      type: object
+      description: At least one field required.
+      properties:
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+          nullable: true
+          description: Alias for standard_price
+        standard_price:
+          type: number
+          nullable: true
+        small_price:
+          type: number
+          nullable: true
+        large_price:
+          type: number
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+        is_available:
+          type: boolean
+
+    MenuItem:
+      type: object
+      description: Menu item with FLAT price fields (no nested prices object).
+      required: [menu_uuid, menu_id, category, item_name, standard_price, small_price, large_price, image_url, is_available]
+      properties:
+        menu_uuid:
+          type: string
+          format: uuid
+        menu_id:
+          type: integer
+        category:
+          type: string
+        item_name:
+          type: string
+        item_description:
+          type: string
+          nullable: true
+        standard_price:
+          type: number
+          nullable: true
+        small_price:
+          type: number
+          nullable: true
+        large_price:
+          type: number
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+        is_available:
+          type: boolean
+
+    MenuCategory:
+      type: object
+      required: [category, items]
+      properties:
+        category:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/MenuItem'
+
+    PaymentItem:
+      type: object
+      required: [menu_uuid, quantity]
+      properties:
+        menu_uuid:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+        selected_size:
+          type: string
+          nullable: true
+          enum: [standard, small, large]
+
+    PaymentRequest:
+      type: object
+      required:
+        - order_ref
+        - gateway_status
+        - payment_method
+        - table_name
+        - customer_name
+        - customer_email
+        - items
+      properties:
+        order_ref:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Unique client-generated payment reference (idempotency key)
+        gateway_status:
+          type: string
+          enum: [success, failed, cancelled]
+        payment_method:
+          type: string
+          enum: [phonepay, razorpay]
+          default: razorpay
+        transaction_id:
+          type: string
+          nullable: true
+        table_name:
+          type: string
+        customer_name:
+          type: string
+        phone_number:
+          type: string
+          description: Optional; ≥10 digits when provided
+        customer_email:
+          type: string
+          format: email
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PaymentItem'
+
+    OrderLineItem:
+      type: object
+      required: [menu_uuid, item_name, selected_size, quantity, unit_price, line_total]
+      properties:
+        menu_uuid:
+          type: string
+          format: uuid
+        item_name:
+          type: string
+          nullable: true
+        selected_size:
+          type: string
+          nullable: true
+          enum: [standard, small, large]
+        quantity:
+          type: integer
+        unit_price:
+          type: number
+        line_total:
+          type: number
+
+    Order:
+      type: object
+      required:
+        - order_uuid
+        - order_id
+        - order_number
+        - table_name
+        - customer_name
+        - phone_number
+        - payment_method
+        - payment_status
+        - payment_transaction_id
+        - kitchen_status
+        - order_status
+        - total_price
+        - subtotal
+        - tax
+        - created_at
+        - items
+      properties:
+        order_uuid:
+          type: string
+          format: uuid
+        order_id:
+          type: integer
+        order_number:
+          type: integer
+        table_name:
+          type: string
+        customer_name:
+          type: string
+        phone_number:
+          type: string
+        payment_method:
+          type: string
+          enum: [phonepay, razorpay]
+        payment_status:
+          type: string
+          enum: [success, failed, cancelled]
+        payment_transaction_id:
+          type: string
+          nullable: true
+        kitchen_status:
+          type: string
+          enum: [in_queue, preparing, prepared, delivered]
+        order_status:
+          type: string
+          enum: [ordered, delivered]
+        total_price:
+          type: number
+        subtotal:
+          type: number
+        tax:
+          type: number
+        created_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderLineItem'
+
+    PaymentSuccessData:
+      type: object
+      description: Envelope data when an order is placed. Wrapped in SuccessEnvelope.
+      required: [payment_status, order_number, total, order]
+      properties:
+        payment_status:
+          type: string
+          const: success
+        order_number:
+          type: integer
+        total:
+          type: number
+        order:
+          $ref: '#/components/schemas/Order'
+
+    PaymentFailureData:
+      type: object
+      description: Envelope data when payment was not completed (still HTTP 200).
+      required: [payment_status, message]
+      properties:
+        payment_status:
+          type: string
+          enum: [failed, cancelled]
+        message:
+          type: string
+          example: "Payment failed/cancelled, nothing was charged"
+
+    OrderPatch:
+      type: object
+      properties:
+        kitchen_status:
+          type: string
+          enum: [in_queue, preparing, prepared, delivered]
+        order_status:
+          type: string
+          enum: [ordered, delivered]
+
+    EmployeeCreate:
+      type: object
+      required: [name, email]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    EmployeePatch:
+      type: object
+      description: At least one field required.
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    Employee:
+      type: object
+      required:
+        - account_uuid
+        - account_id
+        - account_name
+        - account_email
+        - account_role
+        - created_at
+        - has_password
+        - can_delete
+      properties:
+        account_uuid:
+          type: string
+          format: uuid
+        account_id:
+          type: integer
+        account_name:
+          type: string
+        account_email:
+          type: string
+          format: email
+        account_role:
+          type: string
+          enum: [employee, admin]
+        created_at:
+          type: string
+          format: date-time
+        has_password:
+          type: boolean
+          description: false → employee still needs to complete /auth/signup
+        can_delete:
+          type: boolean
+          description: false for admin accounts (cannot be deleted)

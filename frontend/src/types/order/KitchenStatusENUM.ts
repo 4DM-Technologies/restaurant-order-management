@@ -1,0 +1,6 @@
+export enum KitchenStatusENUM {
+  IN_QUEUE  = 'IN_QUEUE',
+  PREPARING = 'PREPARING',
+  PREPARED  = 'PREPARED',
+  DELIVERED = 'DELIVERED',
+}

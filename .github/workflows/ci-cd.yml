@@ -209,7 +209,7 @@ jobs:
 
       - name: Scan Code for Hardcoded Secrets
         run: |
-          gitleaks detect --verbose --source=.
+          gitleaks detect --config .gitleaks.toml --verbose --source=.
 
       # Hadolint for Dockerfile Rules Configuration Checking
       - name: Explicitly Download and Install Hadolint CLI Tool
@@ -234,16 +234,15 @@ jobs:
           fi
 
   # =========================================================================
-  # STAGE 6 & 7: SECURITY SCANNING WITH HUMAN APPROVAL & FALSE-POSITIVE FILTERS
-  # The 'dev' environment gates this job behind a manual approval
-  # in GitHub (Settings > Environments > dev > Required reviewers).
-  # Approval is requested AFTER the security scans and BEFORE the docker build.
+  # STAGE 6 & 7: SECURITY SCANNING (SAST + SCA)
+  # These scans run WITHOUT any approval so every push/PR gets a clean audit.
+  # The manual deployment approval is requested LATER, on Stage 8
+  # (docker-build-push), which depends on this job passing.
   # =========================================================================
   security-scans:
     name: "Stage 6 & 7: SAST and SCA Security Audits"
     needs: [secrets-code-dockerfile-scan]
     runs-on: ubuntu-latest
-    environment: dev
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
@@ -295,6 +294,11 @@ jobs:
     name: "Stage 8: Docker Hub Compilation & Push (dev)"
     needs: [security-scans]
     if: github.event_name == 'push'
+    # The 'dev' environment gates this job behind a manual approval in
+    # GitHub (Settings > Environments > dev > Required reviewers). Approval is
+    # requested here so the Audits (Stages 6 & 7) always run first; Stage 8
+    # (Docker push) and Stage 9 (EC2 deploy) only proceed after approval.
+    environment: dev
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Repository
@@ -314,6 +318,14 @@ jobs:
           push: true
           tags: ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-api:dev
 
+      - name: Generate Frontend .env.production from Task Definition
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          python -m pip install --quiet pyyaml
+          python scripts/generate_env.py frontend --out frontend/.env.production
+
       - name: Build and Push Frontend Image
         uses: docker/build-push-action@v5
         with:
@@ -331,6 +343,32 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      - name: Generate Backend Env File from Task Definition
+        env:
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: |
+          python -m pip install --quiet pyyaml
+          python scripts/generate_env.py backend --out backend.env
+
+      - name: Upload Backend Env File to EC2 Host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          source: backend.env
+          target: /tmp/
+
+      - name: Upload Caddy Reverse Proxy Config to EC2 Host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_EC2_SSH_KEY }}
+          source: deploy/ec2/Caddyfile
+          target: /tmp/
+
       - name: Execute Safe Remote SSH Deployment Script
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -340,27 +378,55 @@ jobs:
           script: |
             echo "${{ secrets.DEV_DOCKERHUB_TOKEN }}" | sudo docker login -u "${{ secrets.DEV_DOCKERHUB_USERNAME }}" --password-stdin
 
-            # Backend container (port 8000)
+            # Env file + proxy config shipped from GitHub Secrets -> /tmp -> /opt/soroco
+            sudo mkdir -p /opt/soroco
+            sudo mv /tmp/backend.env /opt/soroco/backend.env
+            sudo mv /tmp/Caddyfile /opt/soroco/Caddyfile
+
+            # Shared network so the proxy can reach the app containers by name
+            sudo docker network create soroco-net || true
+
+            # Backend container (host 8000 for direct API access, also on the network)
             sudo docker stop restaurant-api || true
             sudo docker rm restaurant-api || true
             sudo docker pull ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-api:dev
 
             sudo docker run -d \
               --name restaurant-api \
+              --network soroco-net \
               -p 8000:8000 \
               --restart unless-stopped \
+              --env-file /opt/soroco/backend.env \
+              -v soroco-data:/app/data \
+              -v soroco-uploads:/app/uploads \
               ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-api:dev
 
-            # Frontend container (port 80)
+            # Frontend container (network-internal only; served via the proxy)
             sudo docker stop restaurant-web || true
             sudo docker rm restaurant-web || true
             sudo docker pull ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-web:dev
 
             sudo docker run -d \
               --name restaurant-web \
-              -p 80:80 \
+              --network soroco-net \
               --restart unless-stopped \
               ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-web:dev
 
+            # Caddy reverse proxy: HTTP (80) + HTTPS (443, self-signed).
+            # Routes /api/*, /images/*, /health to the backend and everything
+            # else to the frontend, so both http://IP and https://IP work.
+            sudo docker stop restaurant-proxy || true
+            sudo docker rm restaurant-proxy || true
+            sudo docker pull caddy:2-alpine
+
+            sudo docker run -d \
+              --name restaurant-proxy \
+              --network soroco-net \
+              -p 80:80 \
+              -p 443:443 \
+              -e SITE_HOST=${{ secrets.DEV_EC2_HOST }} \
+              -v /opt/soroco/Caddyfile:/etc/caddy/Caddyfile:ro \
+              caddy:2-alpine
+
             sudo docker system prune -af
-            echo "🚀 DEV Backend (port 8000) and Frontend (port 80) deployed successfully on AWS EC2!"
+            echo "🚀 DEV Backend (8000), Frontend (80/443 via Caddy) deployed successfully on AWS EC2!"

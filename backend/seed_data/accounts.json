@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Thameem",
+    "email": "thameem@test.com",
+    "role": "admin",
+    "password": "admin123"
+  },
+  {
+    "name": "Soroco Employee",
+    "email": "employee@test.com",
+    "role": "employee",
+    "password": null
+  }
+]

@@ -1,0 +1,37 @@
+{
+    # Serve plain HTTP alongside HTTPS without forcing a redirect, so the app
+    # stays easy to reach at http://<ip> (no cert warning). HTTPS on 443 uses a
+    # self-signed cert (`tls internal`) since there is no public domain.
+    auto_https disable_redirects
+}
+
+{$SITE_HOST}:80 {
+    handle /api/* {
+        reverse_proxy restaurant-api:8000
+    }
+    handle /images/* {
+        reverse_proxy restaurant-api:8000
+    }
+    handle /health {
+        reverse_proxy restaurant-api:8000
+    }
+    handle {
+        reverse_proxy restaurant-web:80
+    }
+}
+
+{$SITE_HOST}:443 {
+    handle /api/* {
+        reverse_proxy restaurant-api:8000
+    }
+    handle /images/* {
+        reverse_proxy restaurant-api:8000
+    }
+    handle /health {
+        reverse_proxy restaurant-api:8000
+    }
+    handle {
+        reverse_proxy restaurant-web:80
+    }
+    tls internal
+}

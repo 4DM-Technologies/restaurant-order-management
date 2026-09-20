@@ -1,0 +1,20 @@
+# Gitleaks configuration — extends the default rules.
+title = "Soroco gitleaks config"
+
+[extend]
+useDefault = true
+
+# design/ docs contain FAKE example JWT/token strings (documentation only,
+# e.g. OpenAPI response samples). They are not real credentials, so suppress
+# scans of these documentation files while keeping the default rules on for
+# all source code.
+[allowlist]
+paths = [
+    "design/api-docs.md",
+    "design/openapi.yaml",
+    # backend/seed_data/accounts.json holds the DEV-SANDBOX seed logins
+    # (thameem@test.com / admin123) intentionally mirrored in the frontend
+    # login hint (VITE_ADMIN_EMAIL / VITE_ADMIN_PASSWORD). These are not real
+    # credentials, so suppress scanning of this fixture file.
+    "backend/seed_data/accounts.json",
+]

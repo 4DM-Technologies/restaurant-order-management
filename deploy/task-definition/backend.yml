@@ -1,0 +1,74 @@
+# Task definition for the backend (FastAPI) service.
+# Declares the ENVIRONMENT VARIABLE NAMES only — no real values.
+# At deploy time scripts/generate_env.py resolves each key:
+#   GitHub Secrets -> GitHub repo Variables -> `default` -> skipped.
+# Keys marked `required: true` MUST exist in Secrets/Vars or the deploy fails.
+app_name: backend
+env:
+  # ── App ──────────────────────────────────────────────────────────────────
+  - key: DEV_APP_NAME
+    default: restaurant-order-management
+  - key: DEV_HOST
+    default: 0.0.0.0
+  - key: DEV_PORT
+    default: "8000"
+
+  # ── Database ─────────────────────────────────────────────────────────────
+  - key: DEV_DATABASE_URL
+    required: true
+
+  # ── Auth (JWT HS256) ─────────────────────────────────────────────────────
+  - key: DEV_JWT_SECRET_KEY
+    required: true
+  - key: DEV_JWT_EXPIRE_MINUTES
+    default: "480"
+  - key: DEV_AUTH_RATE_LIMIT
+    default: 5/minute
+
+  # ── CORS ─────────────────────────────────────────────────────────────────
+  - key: DEV_CORS_ORIGINS
+    required: true
+
+  # ── Payments ─────────────────────────────────────────────────────────────
+  - key: DEV_PAYMENT_PROVIDER
+    default: mock
+  - key: DEV_PHONEPAY_MERCHANT_ID
+    default: MERCHANTUAT
+  - key: DEV_PHONEPAY_BASE_URL
+    default: https://api-preprod.phonepe.com/apis/pg-sandbox
+  - key: DEV_PHONEPAY_SALT_KEY
+  - key: DEV_PHONEPAY_SALT_INDEX
+    default: "1"
+  - key: DEV_RAZORPAY_KEY_ID
+    default: rzp_test_xxxx
+  - key: DEV_RAZORPAY_KEY_SECRET
+
+  # ── Bill email ───────────────────────────────────────────────────────────
+  - key: DEV_EMAIL_MOCK
+    default: "true"
+  - key: DEV_SMTP_HOST
+    default: smtp.gmail.com
+  - key: DEV_SMTP_PORT
+    default: "587"
+  - key: DEV_SMTP_USER
+  - key: DEV_SMTP_PASSWORD
+  - key: DEV_SMTP_SENDER
+
+  # ── Image storage (local | s3) ───────────────────────────────────────────
+  - key: DEV_STORAGE_DRIVER
+    default: local
+  - key: DEV_UPLOAD_DIR
+    default: ./uploads
+  - key: DEV_UPLOAD_MAX_SIZE_MB
+    default: "5"
+  - key: DEV_UPLOAD_ALLOWED_TYPES
+    default: jpeg,png,webp
+
+  # S3 driver — credentials come from the EC2 IAM instance role (AWS default
+  # credential chain). NEVER set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY here.
+  # AWS_REGION is non-secret and has a default.
+  - key: AWS_REGION
+    default: ap-south-1
+  - key: DEV_S3_BUCKET
+    default: soroco-food-images
+  - key: DEV_S3_CDN_URL
