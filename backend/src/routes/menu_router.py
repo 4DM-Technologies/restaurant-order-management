@@ -15,8 +15,8 @@ from src.utils.logger import logged
 router = APIRouter(prefix="/menu", tags=["menu"])
 
 
-@logged(workflow="menu")
 @router.get("")
+@logged(workflow="menu")
 def menu_list(db: Session = Depends(get_db)) -> dict:
     return ok(menu_service.list_menu(db))
 
