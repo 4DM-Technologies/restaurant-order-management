@@ -20,12 +20,12 @@ export default function LoginScreen() {
         <div className="absolute inset-0 bg-soroco-espresso/50" />
         {/* Brand text */}
         <div className="relative z-10 flex flex-col justify-end p-12 text-soroco-cream">
-          <div className="flex items-center gap-3 mb-8">
+          <Link to="/" className="flex items-center gap-3 mb-8 w-fit">
             <div className="w-10 h-10 bg-soroco-amber rounded-full flex items-center justify-center">
               <Coffee className="w-5 h-5 text-white" />
             </div>
             <span className="font-display text-2xl font-bold">Soroco House</span>
-          </div>
+          </Link>
           <h2 className="font-display text-4xl font-bold leading-tight mb-4">
             Crafted with care,<br />served with love.
           </h2>
@@ -53,12 +53,12 @@ export default function LoginScreen() {
             className="w-full max-w-md"
           >
             {/* Logo — desktop only */}
-            <div className="hidden lg:flex items-center gap-3 mb-10">
+            <Link to="/" className="hidden lg:flex items-center gap-3 mb-10 w-fit">
               <div className="w-10 h-10 bg-soroco-amber rounded-full flex items-center justify-center">
                 <Coffee className="w-5 h-5 text-white" />
               </div>
               <span className="font-display text-2xl font-bold text-soroco-espresso">Soroco House</span>
-            </div>
+            </Link>
 
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-soroco-charcoal mb-2">
               Staff Login
