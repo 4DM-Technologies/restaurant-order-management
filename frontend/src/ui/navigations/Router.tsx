@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -10,23 +10,25 @@ import { useAppSelector } from '@/store/hooks.ts';
 import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 import { ShieldOff } from 'lucide-react';
 import DelayedLoader from '@/ui/reusables/BrandLoader/DelayedLoader.tsx';
+import RouteErrorBoundary from '@/ui/reusables/RouteErrorBoundary/RouteErrorBoundary.tsx';
+import { lazyLoad } from '@/utils/lazyLoad.ts';
 
 /* ─────────────────────────── Lazy Screens ─────────────────────────── */
-const HomeScreen         = lazy(() => import('@/ui/screens/HomeScreen/HomeScreen'));
-const MenuScreen         = lazy(() => import('@/ui/screens/MenuScreen/MenuScreen'));
-const CartScreen         = lazy(() => import('@/ui/screens/CartScreen/CartScreen'));
-const CheckoutScreen     = lazy(() => import('@/ui/screens/CheckoutScreen/CheckoutScreen'));
-const PaymentScreen      = lazy(() => import('@/ui/screens/PaymentScreen/PaymentScreen'));
-const PaymentSuccessScreen   = lazy(() => import('@/ui/screens/PaymentSuccessScreen/PaymentSuccessScreen'));
-const PaymentFailedScreen    = lazy(() => import('@/ui/screens/PaymentFailedScreen/PaymentFailedScreen'));
-const PaymentCancelledScreen = lazy(() => import('@/ui/screens/PaymentCancelledScreen/PaymentCancelledScreen'));
-const LoginScreen        = lazy(() => import('@/ui/screens/LoginScreen/LoginScreen'));
-const SignupScreen       = lazy(() => import('@/ui/screens/SignupScreen/SignupScreen'));
-const OrdersScreen       = lazy(() => import('@/ui/screens/OrdersScreen/OrdersScreen'));
-const AdminScreen        = lazy(() => import('@/ui/screens/AdminScreen/AdminScreen'));
-const EmployeeScreen     = lazy(() => import('@/ui/screens/EmployeeScreen/EmployeeScreen'));
-const OrderHistoryScreen = lazy(() => import('@/ui/screens/OrderHistoryScreen/OrderHistoryScreen'));
-const NotFoundScreen     = lazy(() => import('@/ui/screens/NotFoundScreen/NotFoundScreen'));
+const HomeScreen         = lazyLoad(() => import('@/ui/screens/HomeScreen/HomeScreen'));
+const MenuScreen         = lazyLoad(() => import('@/ui/screens/MenuScreen/MenuScreen'));
+const CartScreen         = lazyLoad(() => import('@/ui/screens/CartScreen/CartScreen'));
+const CheckoutScreen     = lazyLoad(() => import('@/ui/screens/CheckoutScreen/CheckoutScreen'));
+const PaymentScreen      = lazyLoad(() => import('@/ui/screens/PaymentScreen/PaymentScreen'));
+const PaymentSuccessScreen   = lazyLoad(() => import('@/ui/screens/PaymentSuccessScreen/PaymentSuccessScreen'));
+const PaymentFailedScreen    = lazyLoad(() => import('@/ui/screens/PaymentFailedScreen/PaymentFailedScreen'));
+const PaymentCancelledScreen = lazyLoad(() => import('@/ui/screens/PaymentCancelledScreen/PaymentCancelledScreen'));
+const LoginScreen        = lazyLoad(() => import('@/ui/screens/LoginScreen/LoginScreen'));
+const SignupScreen       = lazyLoad(() => import('@/ui/screens/SignupScreen/SignupScreen'));
+const OrdersScreen       = lazyLoad(() => import('@/ui/screens/OrdersScreen/OrdersScreen'));
+const AdminScreen        = lazyLoad(() => import('@/ui/screens/AdminScreen/AdminScreen'));
+const EmployeeScreen     = lazyLoad(() => import('@/ui/screens/EmployeeScreen/EmployeeScreen'));
+const OrderHistoryScreen = lazyLoad(() => import('@/ui/screens/OrderHistoryScreen/OrderHistoryScreen'));
+const NotFoundScreen     = lazyLoad(() => import('@/ui/screens/NotFoundScreen/NotFoundScreen'));
 
 /* ─────────────────────────── Loading Spinner ──────────────────────── */
 function LoadingSpinner() {
@@ -78,10 +80,11 @@ function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
 }
 
 /* ─────────────────────────── AppRouter ─────────────────────────────── */
-export default function AppRouter() {
+function AppContent() {
+  const location = useLocation();
   return (
-    <BrowserRouter>
-      <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={<LoadingSpinner />}>
+      <RouteErrorBoundary key={location.pathname}>
         <Routes>
           {/* Public */}
           <Route path="/"        element={<HomeScreen />} />
@@ -134,7 +137,15 @@ export default function AppRouter() {
           {/* 404 */}
           <Route path="*" element={<NotFoundScreen />} />
         </Routes>
-      </Suspense>
+      </RouteErrorBoundary>
+    </Suspense>
+  );
+}
+
+export default function AppRouter() {
+  return (
+    <BrowserRouter>
+      <AppContent />
     </BrowserRouter>
   );
 }
