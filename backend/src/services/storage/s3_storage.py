@@ -5,8 +5,6 @@ Private buckets (S3 Block Public Access on) are served back to the app via
 If a public CDN (`DEV_S3_CDN_URL`) is configured, its URL is used instead.
 """
 
-import os
-
 from src.settings import settings
 from src.utils.logger import logger
 from src.utils.slug import unique_filename
@@ -17,7 +15,9 @@ def _client():
 
     return boto3.client(
         "s3",
-        region_name=os.getenv("AWS_REGION", "ap-south-1"),
+        region_name=settings.s3_region,
+        aws_access_key_id=settings.s3_access_key_id or None,
+        aws_secret_access_key=settings.s3_secret_access_key or None,
     )
 
 
