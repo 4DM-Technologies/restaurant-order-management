@@ -38,7 +38,6 @@ export default function SignupScreen() {
             <div className="w-10 h-10 bg-soroco-amber rounded-full flex items-center justify-center">
               <Coffee className="w-5 h-5 text-white" />
             </div>
-            <span className="font-display text-2xl font-bold">Soroco House</span>
           </Link>
           <h2 className="font-display text-4xl font-bold leading-tight mb-4">
             Join our team<br />of coffee lovers.
