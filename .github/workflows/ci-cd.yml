@@ -343,6 +343,9 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
       - name: Generate Backend Env File from Task Definition
         env:
           SECRETS_JSON: ${{ toJSON(secrets) }}
