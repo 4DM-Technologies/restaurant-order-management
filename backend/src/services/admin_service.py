@@ -10,6 +10,7 @@ from src.repositories import AccountRepository
 from src.repositories.schema import Account, AccountRole
 from src.utils.datetimes import iso_utc
 from src.utils.exceptions import ConflictError, NotFoundError
+from src.utils.logger import logged
 
 
 def _account_out(account: Account) -> dict:
@@ -25,10 +26,12 @@ def _account_out(account: Account) -> dict:
     }
 
 
+@logged(workflow="admin-employees")
 def list_employees(db: Session) -> list[dict]:
     return [_account_out(a) for a in AccountRepository.list_staff(db)]
 
 
+@logged(workflow="admin-employees")
 def create_employee(db: Session, data: EmployeeCreate) -> dict:
     if AccountRepository.get_by_email(db, data.email) is not None:
         raise ConflictError("An account already exists for that email")
@@ -40,6 +43,7 @@ def create_employee(db: Session, data: EmployeeCreate) -> dict:
     return _account_out(account)
 
 
+@logged(workflow="admin-employees")
 def delete_employee(db: Session, account_uuid: str) -> None:
     account = AccountRepository.get_by_uuid(db, account_uuid)
     if account is None:
@@ -68,6 +72,7 @@ def update_employee(db: Session, account_uuid: str, data: dict) -> dict:
     return _account_out(account)
 
 
+@logged(workflow="admin-orders-export")
 def build_orders_csv(orders: list[dict]) -> str:
     buffer = io.StringIO()
     writer = csv.writer(buffer)

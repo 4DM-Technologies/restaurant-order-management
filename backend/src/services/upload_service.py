@@ -8,7 +8,7 @@ from PIL import Image, ImageOps
 from src.services.storage import save_image
 from src.settings import settings
 from src.utils.exceptions import ValidationFailure
-from src.utils.logger import logger
+from src.utils.logger import logged, logger
 from src.utils.slug import slugify
 
 _MIME_BY_TYPE = {
@@ -28,6 +28,7 @@ def _allowed_mimes() -> set[str]:
     return allowed
 
 
+@logged(workflow="upload-image")
 def process_and_store(file: UploadFile, item_name: str) -> str:
     mime = (file.content_type or "").lower()
     if mime not in _allowed_mimes():

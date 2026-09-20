@@ -6,8 +6,10 @@ import bcrypt
 from jose import jwt
 
 from src.settings import settings
+from src.utils.logger import logged
 
 
+@logged(workflow="auth")
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 

@@ -8,6 +8,7 @@ from src.repositories import MenuRepository, OrderRepository
 from src.repositories.schema import KitchenStatus, Order, OrderStatus
 from src.utils.datetimes import iso_utc
 from src.utils.exceptions import NotFoundError
+from src.utils.logger import logged
 
 
 def _enum_str(value) -> str | None:
@@ -47,10 +48,12 @@ def serialize_order(db: Session, order: Order) -> dict:
     }
 
 
+@logged(workflow="kitchen")
 def list_kitchen(db: Session) -> list[dict]:
     return [serialize_order(db, o) for o in OrderRepository.list_kitchen(db)]
 
 
+@logged(workflow="kitchen")
 def patch_order(
     db: Session,
     order_uuid: str,
@@ -68,6 +71,7 @@ def patch_order(
     return serialize_order(db, order)
 
 
+@logged(workflow="admin-orders")
 def history(
     db: Session,
     from_date: datetime | None = None,
