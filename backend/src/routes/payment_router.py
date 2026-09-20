@@ -9,6 +9,7 @@ from src.models.response import ok
 from src.services import order_service
 from src.services.payment import process_payment
 from src.services.websocket_manager import orders_manager
+from src.utils.logger import logged
 from src.utils.rate_limit import limiter
 
 router = APIRouter(prefix="/payments", tags=["payment"])
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/payments", tags=["payment"])
 
 @router.post("")
 @limiter.limit("20/minute")
+@logged(workflow="checkout")
 async def create_payment(
     request: Request,
     payload: PaymentRequest,

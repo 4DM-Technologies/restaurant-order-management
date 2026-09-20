@@ -10,6 +10,7 @@ from src.models.response import ok
 from src.repositories.schema import AccountRole
 from src.services import order_service
 from src.services.websocket_manager import orders_manager
+from src.utils.logger import logged
 
 router = APIRouter(
     prefix="/orders",
@@ -18,11 +19,13 @@ router = APIRouter(
 )
 
 
+@logged(workflow="kitchen")
 @router.get("/kitchen")
 def kitchen(db: Session = Depends(get_db)) -> dict:
     return ok(order_service.list_kitchen(db))
 
 
+@logged(workflow="kitchen")
 @router.patch("/{order_uuid}")
 async def update_order(
     order_uuid: str,

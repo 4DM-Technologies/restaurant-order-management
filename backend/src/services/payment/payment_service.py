@@ -16,7 +16,7 @@ from src.repositories.schema.enums import SelectedSize
 from src.services import email_service
 from src.services.order_service import serialize_order
 from src.utils.exceptions import ValidationFailure
-from src.utils.logger import logger
+from src.utils.logger import logged, logger
 
 _SIZE_COL = {
     SelectedSize.SMALL: "small_price",
@@ -48,6 +48,7 @@ def _resolve_unit_price(menu_item, size: SelectedSize | None) -> float:
     return float(menu_item.standard_price)
 
 
+@logged(workflow="checkout")
 def process_payment(db: Session, payload: PaymentRequest) -> PaymentResult:
     logger.info(
         "Payment received: order_ref=%s gateway_status=%s method=%s",

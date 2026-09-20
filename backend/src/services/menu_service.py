@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from src.repositories import MenuRepository
 from src.repositories.schema import MenuItem
 from src.utils.exceptions import ConflictError, NotFoundError
+from src.utils.logger import logged
 
 # Stable display order — must match the frontend category list.
 CATEGORY_ORDER = [
@@ -38,6 +39,7 @@ def to_out(item: MenuItem) -> dict:
     }
 
 
+@logged(workflow="menu")
 def list_menu(db: Session) -> list[dict]:
     items = MenuRepository.list_all(db)
     grouped: dict[str, list[dict]] = {}
@@ -52,6 +54,7 @@ def list_menu(db: Session) -> list[dict]:
     ]
 
 
+@logged(workflow="menu-admin")
 def create_item(db: Session, data: dict) -> dict:
     existing = MenuRepository.list_all(db)
     if any(
@@ -67,6 +70,7 @@ def create_item(db: Session, data: dict) -> dict:
     return to_out(item)
 
 
+@logged(workflow="menu-admin")
 def patch_item(db: Session, menu_uuid: str, data: dict) -> dict:
     item = MenuRepository.get_by_uuid(db, menu_uuid)
     if item is None:
@@ -77,6 +81,7 @@ def patch_item(db: Session, menu_uuid: str, data: dict) -> dict:
     return to_out(item)
 
 
+@logged(workflow="menu-admin")
 def delete_item(db: Session, menu_uuid: str) -> None:
     item = MenuRepository.get_by_uuid(db, menu_uuid)
     if item is None:

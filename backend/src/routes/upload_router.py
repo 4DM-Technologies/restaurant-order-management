@@ -8,6 +8,7 @@ from src.middleware.auth import require_roles
 from src.models.response import ok
 from src.repositories.schema import AccountRole
 from src.services import upload_service
+from src.utils.logger import logged
 from src.utils.rate_limit import limiter
 
 router = APIRouter(prefix="/upload", tags=["uploads"])
@@ -15,6 +16,7 @@ router = APIRouter(prefix="/upload", tags=["uploads"])
 
 @router.post("/image")
 @limiter.limit("5/minute")
+@logged(workflow="upload-image")
 async def upload_image(
     request: Request,
     file: UploadFile = File(...),

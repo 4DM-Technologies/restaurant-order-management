@@ -16,11 +16,13 @@ from src.services.auth_service import (
 )
 from src.settings import settings
 from src.utils.exceptions import ConflictError, NotFoundError, UnauthorizedError
+from src.utils.logger import logged
 from src.utils.rate_limit import limiter
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+@logged(workflow="auth")
 @router.post("/login")
 @limiter.limit(settings.auth_rate_limit)
 def login(
@@ -48,6 +50,7 @@ def login(
     )
 
 
+@logged(workflow="auth")
 @router.post("/signup")
 @limiter.limit(settings.auth_rate_limit)
 def signup(
@@ -79,6 +82,7 @@ def signup(
     )
 
 
+@logged(workflow="auth")
 @router.get("/check")
 @limiter.limit(settings.auth_rate_limit)
 def check_account(

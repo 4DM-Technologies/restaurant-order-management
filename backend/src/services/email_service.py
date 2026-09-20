@@ -5,7 +5,7 @@ import smtplib
 from email.message import EmailMessage
 
 from src.settings import settings
-from src.utils.logger import logger
+from src.utils.logger import logged, logger
 
 _BRAND = "Soroco House"
 
@@ -187,6 +187,7 @@ def _subject(order_number: int) -> str:
     return f"Order #{order_number} confirmed — {_BRAND}"
 
 
+@logged(workflow="bill-email")
 def send_bill(
     to_email: str,
     *,

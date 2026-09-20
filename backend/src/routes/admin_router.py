@@ -12,6 +12,7 @@ from src.models.response import ok, ok_message
 from src.repositories.schema import AccountRole, OrderStatus
 from src.services import admin_service, order_service
 from src.utils.exceptions import ValidationFailure
+from src.utils.logger import logged
 
 router = APIRouter(
     prefix="/admin",
@@ -32,22 +33,26 @@ def _parse_date(value: str | None, end_of_day: bool = False) -> datetime | None:
     return parsed
 
 
+@logged(workflow="admin-employees")
 @router.get("/employees")
 def employees(db: Session = Depends(get_db)) -> dict:
     return ok(admin_service.list_employees(db))
 
 
+@logged(workflow="admin-employees")
 @router.post("/employees")
 def employees_create(payload: EmployeeCreate, db: Session = Depends(get_db)) -> dict:
     return ok(admin_service.create_employee(db, payload))
 
 
+@logged(workflow="admin-employees")
 @router.delete("/employees/{account_uuid}")
 def employees_delete(account_uuid: str, db: Session = Depends(get_db)) -> dict:
     admin_service.delete_employee(db, account_uuid)
     return ok_message("Employee removed")
 
 
+@logged(workflow="admin-employees")
 @router.patch("/employees/{account_uuid}")
 def employees_update(
     account_uuid: str, payload: EmployeePatch, db: Session = Depends(get_db)
@@ -59,6 +64,7 @@ def employees_update(
     )
 
 
+@logged(workflow="admin-orders")
 @router.get("/orders")
 def orders(
     from_date: str | None = Query(None, description="YYYY-MM-DD"),
@@ -76,6 +82,7 @@ def orders(
     )
 
 
+@logged(workflow="admin-orders-export")
 @router.get("/orders/export")
 def orders_export(
     from_date: str | None = Query(None, description="YYYY-MM-DD"),

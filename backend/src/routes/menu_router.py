@@ -10,15 +10,18 @@ from src.models.response import ok, ok_message
 from src.repositories.schema import AccountRole
 from src.services import menu_service
 from src.services.websocket_manager import menu_manager
+from src.utils.logger import logged
 
 router = APIRouter(prefix="/menu", tags=["menu"])
 
 
+@logged(workflow="menu")
 @router.get("")
 def menu_list(db: Session = Depends(get_db)) -> dict:
     return ok(menu_service.list_menu(db))
 
 
+@logged(workflow="menu-admin")
 @router.post("")
 async def menu_create(
     payload: MenuItemCreate,
@@ -30,6 +33,7 @@ async def menu_create(
     return ok(item)
 
 
+@logged(workflow="menu-admin")
 @router.patch("/{menu_uuid}")
 async def menu_patch(
     menu_uuid: str,
@@ -42,6 +46,7 @@ async def menu_patch(
     return ok(item)
 
 
+@logged(workflow="menu-admin")
 @router.delete("/{menu_uuid}")
 async def menu_delete(
     menu_uuid: str,
