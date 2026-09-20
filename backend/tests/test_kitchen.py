@@ -35,6 +35,8 @@ def test_kitchen_board_and_status_update(client, admin_user, employee_user):
     )
     assert board.status_code == 200
     assert board.json()["data"][0]["kitchen_status"] == "in_queue"
+    created_at = board.json()["data"][0]["created_at"]
+    assert created_at.endswith("+00:00"), f"expected UTC offset, got: {created_at}"
 
     updated = client.patch(
         f"/api/v1/orders/{order_uuid}",
