@@ -420,6 +420,17 @@ jobs:
             # Caddy reverse proxy: HTTP (80) + HTTPS (443, self-signed).
             # Routes /api/*, /images/*, /health to the backend and everything
             # else to the frontend, so both http://IP and https://IP work.
+            # The TLS cert is a plain openssl self-signed cert (Caddy's built-in
+            # internal CA fails the handshake here), persisted under /opt/soroco/cert.
+            sudo mkdir -p /opt/soroco/cert
+            if [ ! -f /opt/soroco/cert/server.crt ]; then
+              sudo openssl req -x509 -newkey rsa:2048 -nodes \
+                -keyout /opt/soroco/cert/server.key \
+                -out /opt/soroco/cert/server.crt \
+                -days 365 -subj "/CN=${{ secrets.DEV_EC2_HOST }}" \
+                -addext "subjectAltName=IP:${{ secrets.DEV_EC2_HOST }},DNS:localhost"
+            fi
+
             sudo docker stop restaurant-proxy || true
             sudo docker rm restaurant-proxy || true
             sudo docker pull caddy:2-alpine
@@ -429,8 +440,8 @@ jobs:
               --network soroco-net \
               -p 80:80 \
               -p 443:443 \
-              -e SITE_HOST=${{ secrets.DEV_EC2_HOST }} \
               -v /opt/soroco/Caddyfile:/etc/caddy/Caddyfile:ro \
+              -v /opt/soroco/cert:/etc/caddy/cert:ro \
               caddy:2-alpine
 
             sudo docker system prune -af
