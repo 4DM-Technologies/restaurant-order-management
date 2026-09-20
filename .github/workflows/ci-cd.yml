@@ -393,7 +393,13 @@ jobs:
               ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-api:dev
 
             # Frontend container (host port 80; VITE_* HTTP URLs are baked into
-            # the image at build time and point straight at the backend :8000)
+            # the image at build time and point straight at the backend :8000).
+            # Also tear down the legacy Caddy reverse proxy (restaurant-proxy),
+            # which no longer belongs to the HTTP-only stack but still binds
+            # host ports 80/443 from older deploys.
+            sudo docker stop restaurant-proxy || true
+            sudo docker rm restaurant-proxy || true
+
             sudo docker stop restaurant-web || true
             sudo docker rm restaurant-web || true
             sudo docker pull ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-web:dev
