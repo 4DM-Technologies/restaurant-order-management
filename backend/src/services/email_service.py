@@ -47,7 +47,7 @@ def build_bill_body(
             f"Paid via {payment_method}",
             "",
             "Your order is now in the kitchen and will be served shortly.",
-            f"— {_BRAND}",
+            f"Thanks for choosing {_BRAND}!",
         ]
     )
 
@@ -108,7 +108,10 @@ def build_bill_html(
                 Thanks, {customer}!
               </div>
               <div style="color:#9B8B78;font-size:14px;text-align:center;line-height:1.5;">
-                Your order is in the kitchen and will be served shortly. Thanks for choosing {brand}!
+                Your order is in the kitchen and will be served shortly.
+              </div>
+              <div style="color:#9B8B78;font-size:14px;text-align:center;line-height:1.5;margin-top:4px;">
+                Thanks for choosing <span style="white-space:nowrap;">{brand}!</span>
               </div>
               <div style="text-align:center;margin-top:14px;">
                 <span style="display:inline-block;background:#F0EAE0;color:#6B5028;font-size:13px;font-weight:700;border-radius:999px;padding:6px 16px;">
