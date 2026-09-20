@@ -20,7 +20,7 @@ WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
 
-COPY serve.json ./serve.json
+COPY serve.json ./dist/serve.json
 
 EXPOSE 80
 
