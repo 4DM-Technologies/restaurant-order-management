@@ -21,8 +21,8 @@ def menu_list(db: Session = Depends(get_db)) -> dict:
     return ok(menu_service.list_menu(db))
 
 
-@logged(workflow="menu-admin")
 @router.post("")
+@logged(workflow="menu-admin")
 async def menu_create(
     payload: MenuItemCreate,
     _admin=Depends(require_roles(AccountRole.ADMIN)),
@@ -33,8 +33,8 @@ async def menu_create(
     return ok(item)
 
 
-@logged(workflow="menu-admin")
 @router.patch("/{menu_uuid}")
+@logged(workflow="menu-admin")
 async def menu_patch(
     menu_uuid: str,
     payload: MenuItemPatch,
@@ -46,8 +46,8 @@ async def menu_patch(
     return ok(item)
 
 
-@logged(workflow="menu-admin")
 @router.delete("/{menu_uuid}")
+@logged(workflow="menu-admin")
 async def menu_delete(
     menu_uuid: str,
     _admin=Depends(require_roles(AccountRole.ADMIN)),

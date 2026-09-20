@@ -19,14 +19,14 @@ router = APIRouter(
 )
 
 
-@logged(workflow="kitchen")
 @router.get("/kitchen")
+@logged(workflow="kitchen")
 def kitchen(db: Session = Depends(get_db)) -> dict:
     return ok(order_service.list_kitchen(db))
 
 
-@logged(workflow="kitchen")
 @router.patch("/{order_uuid}")
+@logged(workflow="kitchen")
 async def update_order(
     order_uuid: str,
     payload: OrderPatch,
