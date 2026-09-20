@@ -19,15 +19,79 @@ from src.database import Base, engine
 from src.routes import include_routers
 from src.settings import settings
 from src.utils.exceptions.handlers import register_exception_handlers
-from src.utils.logger import TraceIDMiddleware
+from src.utils.logger import TraceIDMiddleware, logger
 from src.utils.rate_limit import limiter
 
 
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    # Create tables on startup (no auto-seed — run `python -m src.seed`).
+def _base_url() -> str:
+    if settings.public_url:
+        return settings.public_url.rstrip("/")
+    return f"http://{settings.host}:{settings.port}"
+
+
+def _startup_banner(app_name: str, version: str) -> None:
+    base = _base_url()
+    logger.info(
+        "%s v%s is starting up",
+        app_name,
+        version,
+        extra={"event": "startup", "state": "booting"},
+    )
+    logger.info(
+        "Backend link: %s",
+        base,
+        extra={"event": "startup", "state": "booting", "url": base},
+    )
+    logger.info(
+        "Interactive docs: %s/docs",
+        base,
+        extra={"event": "startup", "state": "booting"},
+    )
+    logger.info(
+        "Health check: %s/health",
+        base,
+        extra={"event": "startup", "state": "booting"},
+    )
+    logger.info(
+        "Database: %s",
+        settings.database_url.split("@")[-1],
+        extra={"event": "startup", "state": "booting", "component": "database"},
+    )
+    logger.info(
+        "Storage driver: %s",
+        settings.storage_driver,
+        extra={"event": "startup", "state": "booting", "component": "storage"},
+    )
+    logger.info(
+        "Bill email: %s",
+        "MOCK (console)" if settings.email_mock else settings.smtp_sender,
+        extra={"event": "startup", "state": "booting", "component": "email"},
+    )
+
+
+def _migrate_tables() -> list[str]:
     Base.metadata.create_all(bind=engine)
+    return sorted(Base.metadata.tables.keys())
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _startup_banner(app.title.split(" — ")[0], app.version)
+    # Create tables on startup (no auto-seed — run `python -m src.seed`).
+    tables = _migrate_tables()
+    logger.info(
+        "Database migration complete — %d table(s) ready: %s",
+        len(tables),
+        ", ".join(tables) if tables else "none",
+        extra={"event": "startup", "state": "ready", "component": "database"},
+    )
     yield
+    logger.info(
+        "%s v%s shut down",
+        app.title.split(" — ")[0],
+        app.version,
+        extra={"event": "shutdown", "state": "stopped"},
+    )
 
 
 def create_app() -> FastAPI:
