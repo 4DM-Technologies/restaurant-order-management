@@ -234,16 +234,15 @@ jobs:
           fi
 
   # =========================================================================
-  # STAGE 6 & 7: SECURITY SCANNING WITH HUMAN APPROVAL & FALSE-POSITIVE FILTERS
-  # The 'dev' environment gates this job behind a manual approval
-  # in GitHub (Settings > Environments > dev > Required reviewers).
-  # Approval is requested AFTER the security scans and BEFORE the docker build.
+  # STAGE 6 & 7: SECURITY SCANNING (SAST + SCA)
+  # These scans run WITHOUT any approval so every push/PR gets a clean audit.
+  # The manual deployment approval is requested LATER, on Stage 8
+  # (docker-build-push), which depends on this job passing.
   # =========================================================================
   security-scans:
     name: "Stage 6 & 7: SAST and SCA Security Audits"
     needs: [secrets-code-dockerfile-scan]
     runs-on: ubuntu-latest
-    environment: dev
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
@@ -295,6 +294,11 @@ jobs:
     name: "Stage 8: Docker Hub Compilation & Push (dev)"
     needs: [security-scans]
     if: github.event_name == 'push'
+    # The 'dev' environment gates this job behind a manual approval in
+    # GitHub (Settings > Environments > dev > Required reviewers). Approval is
+    # requested here so the Audits (Stages 6 & 7) always run first; Stage 8
+    # (Docker push) and Stage 9 (EC2 deploy) only proceed after approval.
+    environment: dev
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code Repository
