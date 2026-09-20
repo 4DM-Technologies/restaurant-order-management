@@ -22,9 +22,9 @@ from src.utils.rate_limit import limiter
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@logged(workflow="auth")
 @router.post("/login")
 @limiter.limit(settings.auth_rate_limit)
+@logged(workflow="auth")
 def login(
     request: Request,
     payload: LoginRequest,
@@ -50,9 +50,9 @@ def login(
     )
 
 
-@logged(workflow="auth")
 @router.post("/signup")
 @limiter.limit(settings.auth_rate_limit)
+@logged(workflow="auth")
 def signup(
     request: Request,
     payload: SignupRequest,
@@ -82,9 +82,9 @@ def signup(
     )
 
 
-@logged(workflow="auth")
 @router.get("/check")
 @limiter.limit(settings.auth_rate_limit)
+@logged(workflow="auth")
 def check_account(
     request: Request,
     email: str,

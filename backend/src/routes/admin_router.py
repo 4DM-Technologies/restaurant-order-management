@@ -33,27 +33,27 @@ def _parse_date(value: str | None, end_of_day: bool = False) -> datetime | None:
     return parsed
 
 
-@logged(workflow="admin-employees")
 @router.get("/employees")
+@logged(workflow="admin-employees")
 def employees(db: Session = Depends(get_db)) -> dict:
     return ok(admin_service.list_employees(db))
 
 
-@logged(workflow="admin-employees")
 @router.post("/employees")
+@logged(workflow="admin-employees")
 def employees_create(payload: EmployeeCreate, db: Session = Depends(get_db)) -> dict:
     return ok(admin_service.create_employee(db, payload))
 
 
-@logged(workflow="admin-employees")
 @router.delete("/employees/{account_uuid}")
+@logged(workflow="admin-employees")
 def employees_delete(account_uuid: str, db: Session = Depends(get_db)) -> dict:
     admin_service.delete_employee(db, account_uuid)
     return ok_message("Employee removed")
 
 
-@logged(workflow="admin-employees")
 @router.patch("/employees/{account_uuid}")
+@logged(workflow="admin-employees")
 def employees_update(
     account_uuid: str, payload: EmployeePatch, db: Session = Depends(get_db)
 ) -> dict:
@@ -64,8 +64,8 @@ def employees_update(
     )
 
 
-@logged(workflow="admin-orders")
 @router.get("/orders")
+@logged(workflow="admin-orders")
 def orders(
     from_date: str | None = Query(None, description="YYYY-MM-DD"),
     to_date: str | None = Query(None, description="YYYY-MM-DD"),
@@ -82,8 +82,8 @@ def orders(
     )
 
 
-@logged(workflow="admin-orders-export")
 @router.get("/orders/export")
+@logged(workflow="admin-orders-export")
 def orders_export(
     from_date: str | None = Query(None, description="YYYY-MM-DD"),
     to_date: str | None = Query(None, description="YYYY-MM-DD"),
