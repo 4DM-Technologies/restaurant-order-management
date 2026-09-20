@@ -64,11 +64,15 @@ env:
   - key: DEV_UPLOAD_ALLOWED_TYPES
     default: jpeg,png,webp
 
-  # S3 driver — credentials come from the EC2 IAM instance role (AWS default
-  # credential chain). NEVER set AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY here.
-  # AWS_REGION is non-secret and has a default.
-  - key: AWS_REGION
+  # S3 driver — credentials come from DEV_S3_ACCESS_KEY_ID /
+  # DEV_S3_SECRET_ACCESS_KEY (GitHub Secrets), falling back to the AWS default
+  # credential chain (EC2 IAM role) when empty. Region via DEV_S3_REGION.
+  - key: DEV_S3_REGION
     default: ap-south-1
+  - key: DEV_S3_ACCESS_KEY_ID
+    required: true
+  - key: DEV_S3_SECRET_ACCESS_KEY
+    required: true
   - key: DEV_S3_BUCKET
     default: soroco-food-images
   - key: DEV_S3_CDN_URL

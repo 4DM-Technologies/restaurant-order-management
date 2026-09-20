@@ -22,11 +22,3 @@ env:
   # Image origin — backend container URL (EC2 port 8000), served at /images/*.
   - key: VITE_IMAGE_BASE_URL
     default: http://13.203.202.41:8000
-
-  # Login-screen hint credentials (dev only — sync with backend/seed_data/accounts.json).
-  - key: VITE_ADMIN_EMAIL
-    default: thameem@test.com
-  - key: VITE_ADMIN_PASSWORD
-    default: admin123
-  - key: VITE_EMPLOYEE_EMAIL
-    default: employee@test.com

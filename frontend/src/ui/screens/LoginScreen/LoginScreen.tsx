@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Coffee, Mail, Lock, Loader2, ArrowLeft } from 'lucide-react';
 import { useLoginVM } from '@/ui/screens/LoginScreen/LoginScreen.vm.ts';
-import { ADMIN_EMAIL, ADMIN_PASSWORD, EMPLOYEE_EMAIL } from '@/services/config.ts';
 
 export default function LoginScreen() {
   const { email, setEmail, password, setPassword, isLoading, error, handleLogin } = useLoginVM();
@@ -137,19 +136,6 @@ export default function LoginScreen() {
                 )}
               </button>
             </form>
-
-{/* Hint text */}
-            {ADMIN_EMAIL && (
-              <div className="mt-6 p-4 bg-soroco-linen/60 rounded-xl border border-soroco-linen">
-                <p className="font-body text-xs text-soroco-mocha leading-relaxed">
-                  <span className="font-semibold text-soroco-espresso">Admin:</span>{' '}
-                  {ADMIN_EMAIL} / {ADMIN_PASSWORD}
-                  <br />
-                  <span className="font-semibold text-soroco-espresso">Employee:</span>{' '}
-                  {EMPLOYEE_EMAIL} — activate via Sign up first
-                </p>
-              </div>
-            )}
 
             {/* Footer links */}
             <div className="mt-8 space-y-3 text-center">
