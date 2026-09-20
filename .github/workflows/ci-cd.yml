@@ -363,15 +363,6 @@ jobs:
           source: backend.env
           target: /tmp/
 
-      - name: Upload Caddy Reverse Proxy Config to EC2 Host
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEV_EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.DEV_EC2_SSH_KEY }}
-          source: deploy/ec2/Caddyfile
-          target: /tmp/
-
       - name: Execute Safe Remote SSH Deployment Script
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -383,22 +374,17 @@ jobs:
 
             echo "${{ secrets.DEV_DOCKERHUB_TOKEN }}" | sudo docker login -u "${{ secrets.DEV_DOCKERHUB_USERNAME }}" --password-stdin
 
-            # Env file + proxy config shipped from GitHub Secrets -> /tmp -> /opt/soroco
+            # Env file shipped from GitHub Secrets -> /tmp -> /opt/soroco
             sudo mkdir -p /opt/soroco
             sudo mv /tmp/backend.env /opt/soroco/backend.env
-            sudo mv /tmp/Caddyfile /opt/soroco/Caddyfile
 
-            # Shared network so the proxy can reach the app containers by name
-            sudo docker network create soroco-net || true
-
-            # Backend container (host 8000 for direct API access, also on the network)
+            # Backend container (host port 8000, direct HTTP API + WS access)
             sudo docker stop restaurant-api || true
             sudo docker rm restaurant-api || true
             sudo docker pull ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-api:dev
 
             sudo docker run -d \
               --name restaurant-api \
-              --network soroco-net \
               -p 8000:8000 \
               --restart unless-stopped \
               --env-file /opt/soroco/backend.env \
@@ -406,43 +392,17 @@ jobs:
               -v soroco-uploads:/app/uploads \
               ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-api:dev
 
-            # Frontend container (network-internal only; served via the proxy)
+            # Frontend container (host port 80; VITE_* HTTP URLs are baked into
+            # the image at build time and point straight at the backend :8000)
             sudo docker stop restaurant-web || true
             sudo docker rm restaurant-web || true
             sudo docker pull ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-web:dev
 
             sudo docker run -d \
               --name restaurant-web \
-              --network soroco-net \
+              -p 80:80 \
               --restart unless-stopped \
               ${{ secrets.DEV_DOCKERHUB_USERNAME }}/restaurant-web:dev
 
-            # Caddy reverse proxy: HTTP (80) + HTTPS (443, self-signed).
-            # Routes /api/*, /images/*, /health to the backend and everything
-            # else to the frontend, so both http://IP and https://IP work.
-            # The TLS cert is a plain openssl self-signed cert (Caddy's built-in
-            # internal CA fails the handshake here), persisted under /opt/soroco/cert.
-            sudo mkdir -p /opt/soroco/cert
-            if [ ! -f /opt/soroco/cert/server.crt ]; then
-              sudo openssl req -x509 -newkey rsa:2048 -nodes \
-                -keyout /opt/soroco/cert/server.key \
-                -out /opt/soroco/cert/server.crt \
-                -days 365 -subj "/CN=${{ secrets.DEV_EC2_HOST }}" \
-                -addext "subjectAltName=IP:${{ secrets.DEV_EC2_HOST }},DNS:localhost"
-            fi
-
-            sudo docker stop restaurant-proxy || true
-            sudo docker rm restaurant-proxy || true
-            sudo docker pull caddy:2-alpine
-
-            sudo docker run -d \
-              --name restaurant-proxy \
-              --network soroco-net \
-              -p 80:80 \
-              -p 443:443 \
-              -v /opt/soroco/Caddyfile:/etc/caddy/Caddyfile:ro \
-              -v /opt/soroco/cert:/etc/caddy/cert:ro \
-              caddy:2-alpine
-
             sudo docker system prune -af
-            echo "🚀 DEV Backend (8000), Frontend (80/443 via Caddy) deployed successfully on AWS EC2!"
+            echo "🚀 DEV Backend (port 8000) and Frontend (port 80) deployed successfully on AWS EC2!"
