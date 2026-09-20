@@ -1,6 +1,6 @@
-import { ArrowLeft, ArrowRight, CreditCard, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CreditCard, ShieldCheck, ShoppingBag } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Navbar from '@/ui/reusables/Navbar/Navbar.tsx';
 import { useCheckoutVM } from '@/ui/screens/CheckoutScreen/CheckoutScreen.vm.ts';
 import { PaymentMethodENUM } from '@/types/order/PaymentMethodENUM.ts';
@@ -10,142 +10,95 @@ function formatPrice(amount: number): string {
   return `₹${amount.toFixed(2)}`;
 }
 
-// ── Real PhonePe SVG brand logo ──────────────────────────────────────────────
-function PhonePeLogo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const h = size === 'sm' ? 'h-6' : size === 'lg' ? 'h-10' : 'h-8';
-  return (
-    <svg
-      viewBox="0 0 200 56"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={`${h} w-auto`}
-      aria-label="PhonePe"
-    >
-      {/* Purple rounded rect bg */}
-      <rect width="200" height="56" rx="10" fill="#5F259F" />
-      {/* PhonePe "P" icon mark */}
-      <rect x="10" y="8" width="36" height="40" rx="8" fill="white" fillOpacity="0.15" />
-      <path
-        d="M20 16h10c4.4 0 8 3.6 8 8s-3.6 8-8 8H24v8h-4V16zm4 12h6c2.2 0 4-1.8 4-4s-1.8-4-4-4h-6v8z"
-        fill="white"
-      />
-      {/* PhonePe wordmark */}
-      <text
-        x="56"
-        y="37"
-        fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-        fontSize="22"
-        fontWeight="700"
-        fill="white"
-        letterSpacing="-0.3"
-      >
-        PhonePe
-      </text>
-    </svg>
-  );
-}
-
-// ── Real Razorpay SVG brand logo ─────────────────────────────────────────────
-function RazorpayLogo({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  const h = size === 'sm' ? 'h-6' : size === 'lg' ? 'h-10' : 'h-8';
-  return (
-    <svg
-      viewBox="0 0 220 56"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={`${h} w-auto`}
-      aria-label="Razorpay"
-    >
-      {/* Deep blue bg */}
-      <rect width="220" height="56" rx="10" fill="#072654" />
-      {/* Razorpay lightning bolt icon */}
-      <polygon
-        points="22,10 30,10 24,28 32,28 18,46 22,30 14,30"
-        fill="#3395FF"
-      />
-      {/* Razorpay wordmark */}
-      <text
-        x="44"
-        y="37"
-        fontFamily="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-        fontSize="21"
-        fontWeight="700"
-        fill="white"
-        letterSpacing="-0.2"
-      >
-        Razorpay
-      </text>
-    </svg>
-  );
-}
-
-// ── Modern Payment Method Card ───────────────────────────────────────────────
-interface PaymentCardProps {
+// ── Compact payment method row (Swiggy-style) ────────────────────────────────
+interface PaymentMethodConfig {
   method: PaymentMethodENUM;
+  name: string;
+  tagline: string;
+  logo: string;
+  accent: string;
+}
+
+const PAYMENT_METHODS: PaymentMethodConfig[] = [
+  {
+    method: PaymentMethodENUM.PHONEPE,
+    name: 'PhonePe',
+    tagline: 'UPI · Wallets · Cards',
+    logo: '/brand/phonepay.svg',
+    accent: '#5F259F',
+  },
+  {
+    method: PaymentMethodENUM.RAZORPAY,
+    name: 'Razorpay',
+    tagline: 'Cards · Net Banking · UPI · EMI',
+    logo: '/brand/razorpay.svg',
+    accent: '#3395FF',
+  },
+];
+
+interface PaymentMethodOptionProps {
+  config: PaymentMethodConfig;
   selected: boolean;
   onSelect: () => void;
 }
 
-function PaymentMethodCard({ method, selected, onSelect }: PaymentCardProps) {
-  const isPhonePe = method === PaymentMethodENUM.PHONEPE;
-
-  const config = isPhonePe
-    ? {
-        bg: 'bg-[#5F259F]/8',
-        border: selected ? 'border-[#5F259F]' : 'border-soroco-linen hover:border-[#5F259F]/40',
-        checkColor: 'text-[#5F259F]',
-        tagline: 'UPI · Wallets · Cards',
-        logo: <PhonePeLogo />,
-      }
-    : {
-        bg: 'bg-[#072654]/8',
-        border: selected ? 'border-[#3395FF]' : 'border-soroco-linen hover:border-[#3395FF]/40',
-        checkColor: 'text-[#3395FF]',
-        tagline: 'Cards · Net Banking · UPI',
-        logo: <RazorpayLogo />,
-      };
-
+function PaymentMethodOption({ config, selected, onSelect }: PaymentMethodOptionProps) {
   return (
     <motion.button
       type="button"
+      role="radio"
+      aria-checked={selected}
       onClick={onSelect}
-      aria-pressed={selected}
-      whileHover={{ y: -2 }}
-      whileTap={{ scale: 0.98 }}
+      whileTap={{ scale: 0.985 }}
       className={[
-        'relative flex-1 flex flex-col gap-3 p-5 rounded-2xl border-2 transition-all duration-200 cursor-pointer text-left',
+        'w-full flex items-center gap-3 sm:gap-4 px-3.5 sm:px-4 py-3 rounded-xl border-2 transition-all duration-200 text-left cursor-pointer',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-soroco-amber focus-visible:ring-offset-2',
-        config.border,
-        selected ? 'shadow-warm-md bg-white' : 'bg-white/60',
+        selected
+          ? ''
+          : 'border-soroco-linen bg-white hover:border-soroco-tan/60 hover:bg-soroco-parchment/40',
       ].join(' ')}
+      style={
+        selected
+          ? { borderColor: config.accent, backgroundColor: `${config.accent}0F` }
+          : undefined
+      }
     >
-      {/* Selected check */}
-      <AnimatePresence>
+      {/* Official brand logo */}
+      <span className="w-11 sm:w-12 h-9 shrink-0 rounded-lg border border-soroco-linen bg-white flex items-center justify-center px-1.5">
+        <img
+          src={config.logo}
+          alt={config.name}
+          loading="lazy"
+          className="max-h-6 w-auto object-contain"
+        />
+      </span>
+
+      {/* Name + tagline */}
+      <span className="flex-1 min-w-0">
+        <span className="block font-body text-sm font-semibold text-soroco-charcoal leading-tight">
+          {config.name}
+        </span>
+        <span className="block font-body text-xs text-soroco-tan truncate mt-0.5">
+          {config.tagline}
+        </span>
+      </span>
+
+      {/* Radio indicator */}
+      <span
+        className={[
+          'w-5 h-5 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors duration-200',
+          selected ? '' : 'border-soroco-linen',
+        ].join(' ')}
+        style={selected ? { borderColor: config.accent } : undefined}
+      >
         {selected && (
           <motion.span
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-            className={`absolute top-3 right-3 ${config.checkColor}`}
-          >
-            <CheckCircle2 className="w-5 h-5" fill="currentColor" fillOpacity={0.15} />
-          </motion.span>
+            layoutId="payment-radio"
+            className="w-2.5 h-2.5 rounded-full block"
+            style={{ backgroundColor: config.accent }}
+          />
         )}
-      </AnimatePresence>
-
-      {/* Logo area */}
-      <div className={`w-full flex items-center justify-center py-3 rounded-xl ${config.bg}`}>
-        {config.logo}
-      </div>
-
-      {/* Label */}
-      <div>
-        <p className="font-body font-semibold text-sm text-soroco-espresso">
-          Pay with {isPhonePe ? 'PhonePe' : 'Razorpay'}
-        </p>
-        <p className="font-body text-xs text-soroco-tan mt-0.5">{config.tagline}</p>
-      </div>
+      </span>
     </motion.button>
   );
 }
@@ -253,6 +206,44 @@ function CheckoutSummary({ items, subtotal, tax, total }: CheckoutSummaryProps) 
 export default function CheckoutScreen() {
   const vm = useCheckoutVM();
 
+  // Empty cart guard — don't show a ₹0 checkout form
+  if (vm.items.length === 0) {
+    return (
+      <div className="min-h-screen bg-soroco-cream">
+        <Navbar />
+        <main className="pt-[var(--nav-height)]">
+          <div className="section-container py-16">
+            <div className="max-w-xl mx-auto rounded-3xl border border-soroco-linen/70 bg-white/60 shadow-warm-sm">
+              <div className="flex flex-col items-center justify-center text-center px-6 py-16">
+                <div className="w-16 h-16 rounded-full bg-soroco-amber/10 flex items-center justify-center mb-5">
+                  <ShoppingBag className="w-8 h-8 text-soroco-amber" />
+                </div>
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-soroco-charcoal mb-2 text-balance">
+                  Nothing in your cart yet
+                </h1>
+                <p className="font-body text-soroco-mocha text-sm sm:text-base leading-relaxed max-w-sm mb-8 text-pretty">
+                  Your cart is empty. Head over to the menu and pick something
+                  freshly brewed.
+                </p>
+                <Link to="/menu" className="btn-primary gap-2">
+                  Explore Menu
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link
+                  to="/"
+                  className="mt-4 inline-flex items-center gap-1.5 font-body text-sm text-soroco-mocha hover:text-soroco-espresso transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Back to home
+                </Link>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-soroco-cream">
       <Navbar />
@@ -299,12 +290,12 @@ export default function CheckoutScreen() {
                     <FormField id="customerName" name="customerName" label="Full Name"
                       value={vm.form.customerName} onChange={vm.handleFieldChange}
                       error={vm.errors.customerName} placeholder="Your name" required />
-                    <FormField id="phone" name="phone" label="Phone Number" type="tel"
-                      value={vm.form.phone} onChange={vm.handleFieldChange}
-                      error={vm.errors.phone} placeholder="10-digit mobile number" required />
-                    <FormField id="email" name="email" label="Email (optional)" type="email"
+                    <FormField id="email" name="email" label="Email Address" type="email"
                       value={vm.form.email} onChange={vm.handleFieldChange}
-                      error={vm.errors.email} placeholder="your@email.com" />
+                      error={vm.errors.email} placeholder="your@email.com" required />
+                    <FormField id="phone" name="phone" label="Phone Number (optional)" type="tel"
+                      value={vm.form.phone} onChange={vm.handleFieldChange}
+                      error={vm.errors.phone} placeholder="10-digit mobile number" />
                   </div>
                 </motion.section>
 
@@ -318,20 +309,22 @@ export default function CheckoutScreen() {
                   <h2 className="font-display text-lg font-semibold text-soroco-charcoal mb-5">
                     Payment Method
                   </h2>
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <PaymentMethodCard
-                      method={PaymentMethodENUM.PHONEPE}
-                      selected={vm.selectedPaymentMethod === PaymentMethodENUM.PHONEPE}
-                      onSelect={() => vm.handlePaymentMethodSelect(PaymentMethodENUM.PHONEPE)}
-                    />
-                    <PaymentMethodCard
-                      method={PaymentMethodENUM.RAZORPAY}
-                      selected={vm.selectedPaymentMethod === PaymentMethodENUM.RAZORPAY}
-                      onSelect={() => vm.handlePaymentMethodSelect(PaymentMethodENUM.RAZORPAY)}
-                    />
+                  <div
+                    className="space-y-2.5"
+                    role="radiogroup"
+                    aria-label="Payment method"
+                  >
+                    {PAYMENT_METHODS.map((config) => (
+                      <PaymentMethodOption
+                        key={config.method}
+                        config={config}
+                        selected={vm.selectedPaymentMethod === config.method}
+                        onSelect={() => vm.handlePaymentMethodSelect(config.method)}
+                      />
+                    ))}
                   </div>
                   <p className="mt-4 text-xs text-soroco-tan font-body flex items-center gap-1.5">
-                    <span className="text-green-500">🔒</span>
+                    <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
                     Secure payment simulation — no real transaction processed
                   </p>
                 </motion.section>

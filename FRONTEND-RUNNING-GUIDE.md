@@ -1,6 +1,6 @@
 # Soroco House — Running Guide
 
-> **Frontend-only build** · React 18 · Vite · TypeScript · Tailwind CSS · Redux · Framer Motion
+> **Connected to the FastAPI backend** · React 18 · Vite · TypeScript · Tailwind CSS · Redux · Framer Motion
 
 ---
 
@@ -37,6 +37,26 @@ http://localhost:5173
 ```
 
 The app loads instantly. Any file you save hot-reloads the browser automatically.
+
+---
+
+## Environment Variables (wired to the backend)
+
+`frontend/.env.development` already exists with working dev values. If missing, copy
+`frontend/.env.example` to `frontend/.env.development` (never commit `.env` files):
+
+```bash
+copy .env.example .env.development       # Windows
+# cp .env.example .env.development       # Linux / macOS
+```
+
+| Variable | Dev value | Purpose |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:8000/api/v1` | REST base (backend already applies `/api/v1`; code writes short paths like `/menu`, `/payments`) |
+| `VITE_WS_BASE_URL` | `ws://localhost:8000/api/v1` | WebSocket base — code appends `/ws/menu` or `/ws/orders` |
+| `VITE_IMAGE_BASE_URL` | `http://localhost:8000` | Origin serving `/images/...` (S3/CloudFront origin in prod; `""` when same-origin) |
+
+Full docs: `backend-prompt.md` §25 and `define/development-prompt.md` §10.3.
 
 ---
 
@@ -101,20 +121,23 @@ Every route is directly accessible by URL. No navigation required.
 
 ## Login Credentials
 
-These are the built-in mock credentials for the frontend-only phase:
+These are the accounts seeded into the backend database (run `python -m src.seed` in `backend/`):
 
 ### Admin Account
 ```
-Email:    admin@soroco.coffee
+Email:    thameem@test.com
 Password: admin123
 ```
 Access: Admin Dashboard, Employees, Orders, Order History, Menu
 
 ### Employee Account
 ```
-Email:    employee@soroco.coffee
-Password: employee123
+Email:    employee@test.com
+Password: (none yet — activate it)
 ```
+The employee account is created without a password. On `/signup`, enter the same email — if the
+account exists the password fields appear — then set a password to activate it. Activation returns
+a token and logs you straight in (no separate login step).
 Access: Kitchen Orders Board, Menu
 
 ---
@@ -133,14 +156,14 @@ Access: Kitchen Orders Board, Menu
 7. Review cart → "Proceed to Checkout"
 8. Fill in table number, name, phone → select PhonePe or Razorpay
 9. Click "Proceed to Payment"
-10. Click "Pay" → see processing → Success page with order number
+10. Click "Pay" → mock gateway processes → Success page with order number + bill emailed to the customer's email
 ```
 
 ### Admin Flow
 
 ```
 1. Go to  http://localhost:5173/login
-2. Login with  admin@soroco.coffee / admin123
+2. Login with  thameem@test.com / admin123
 3. Redirects to  /admin  (Dashboard)
 4. Click any dashboard card:
    - Employees  → manage staff
@@ -153,7 +176,7 @@ Access: Kitchen Orders Board, Menu
 
 ```
 1. Go to  http://localhost:5173/login
-2. Login with  employee@soroco.coffee / employee123
+2. Login with  thameem@test.com / admin123 (or activate employee@test.com first via /signup)
 3. Redirects to  /orders  (Kitchen Board)
 4. See all live orders grouped by status
 5. Click "Start Preparing" → "Mark Prepared" → "Mark Delivered"
@@ -204,16 +227,21 @@ frontend/
 │   │       ├── cartSlice.ts    # Cart state
 │   │       └── authSlice.ts    # Auth state
 │   ├── services/
-│   │   ├── screens/            # Mock data services
-│   │   │   ├── menuScreenService/    # 23 menu items across 6 categories
-│   │   │   ├── orderScreenService/   # 5 sample orders
-│   │   │   └── employeeScreenService/# 5 sample employees
+│   │   ├── apiClient.ts          # Fetch wrapper (JWT + envelope unwrap + errors)
+│   │   ├── uploadImageService.ts # Upload file → image_url; getImageUrl() resolution
+│   │   ├── websocket/            # liveClient.ts — WS menu/orders subscriptions
+│   │   ├── screens/              # Services mapped to the real backend
+│   │   │   ├── menuScreenService/    # Menu from /api/v1/menu (24 items, 6 categories)
+│   │   │   ├── orderScreenService/   # Kitchen + history from /api/v1/orders, /admin/orders
+│   │   │   ├── employeeScreenService # Staff from /api/v1/admin/employees
+│   │   │   └── paymentScreenService/ # PaymentService → /api/v1/payments
 │   │   └── platform/
-│   │       └── authService/    # Mock login / signup
-│   ├── types/                  # TypeScript types & enums
+│   │       └── authService/      # Login/signup/me against the backend
+│   ├── types/                    # TypeScript types & enums
 │   │   ├── menu/   MenuItemBO
 │   │   ├── cart/   CartItemBO
 │   │   ├── order/  OrderBO + all status enums
+│   │   ├── payment/ PaymentRequestBO / PaymentResultBO
 │   │   └── user/   UserBO + role/status enums
 │   ├── index.css               # Tailwind + Soroco design tokens
 │   └── main.tsx                # App entry point
@@ -284,4 +312,4 @@ Most common cause: running `npm run preview` without first running `npm run buil
 
 ---
 
-*Soroco House · Frontend Phase · Local / Mock Data Mode*
+*Soroco House · Frontend · wired to the FastAPI backend (RDS) · mock payment gateway*

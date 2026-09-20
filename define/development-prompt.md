@@ -66,7 +66,7 @@ Fetch and study **https://www.soroco.coffee/** and **https://www.soroco.coffee/m
 
 If the session JWT exists **and** the role is `employee` or `admin`, the same menu page shows extra controls:
 
-- **"Add New Item"** button at the top → modal with **category, name, price, description** (image left for later) → `POST` to backend → new menu item saved to DB (`is_available` defaults TRUE, `image_url` NULL) → broadcast over WS.
+- **"Add New Item"** button at the top → modal with **category, name, price, description, photo upload** → if a photo is picked, upload it to `POST /api/v1/uploads` (Section 9A) → `POST` to backend → new menu item saved to DB (`is_available` defaults TRUE) → `image_url` = the returned upload URL (or NULL if no photo) → broadcast over WS.
 - **Remove item:** a visible **trash icon** on each item card (shown only to staff; no long-press/swipe). Tap → popup **"Are you sure?"** → confirm → `DELETE` item from DB → broadcast over WS.
 - **Availability dropdown / toggle** (Available ⇄ Unavailable) per item:
   - **Persisted.** Toggling writes `menu.is_available` to the DB (`PATCH /menu/{menu_uuid}`) AND broadcasts the change over WS. On server restart, the DB state is the source of truth. Toggling to Unavailable greys the card out for everyone (customers included) via WS broadcast.
@@ -195,6 +195,7 @@ All JSON unless noted. Protected = requires `Authorization: Bearer <JWT>`; roles
 | `POST` | `/menu` | **protected** (employee/admin) | Add menu item {name, price, description, category, prices} |
 | `PATCH` | `/menu/{menu_uuid}` | **protected** (employee/admin) | Update item (availability toggle / `is_available`, prices, etc.) |
 | `DELETE` | `/menu/{menu_uuid}` | **protected** (employee/admin) | Remove menu item |
+| `POST` | `/uploads` | **protected** (employee/admin) | Upload a food photo — multipart `file` + `item_name` form fields. Validates type (jpeg/png/webp) and size (≤ `DEV_UPLOAD_MAX_SIZE_MB`), resizes to ~640px WebP with Pillow, stores via the storage driver (S3 or local fallback, Section 9A), returns `{"image_url": "<relative /images/<file> path or absolute S3/CDN URL>"}`. The returned value is saved into `menu.image_url` |
 | `POST` | `/payment` | public | Single payment endpoint — receives the **final** gateway result from the frontend (or gateway callback). Branches by status: **success** → insert `orders` + `order_items`, recompute prices, `payment_status='success'`, `kitchen_status='in_queue'`, `order_status='ordered'`, store `payment_transaction_id`, generate + email bill, broadcast kitchen WS; **failed / cancelled** → no order rows, return friendly error so the cart stays intact |
 | `GET` | `/orders` | **protected** (employee/admin) | Orders for kitchen (FIFO, includes `kitchen_status` + `order_status`) |
 | `PATCH` | `/orders/{order_uuid}` | **protected** (employee/admin) | Update `kitchen_status` or `order_status`. **Validation = enum only:** value must be one of the column's ENUM values (`in_queue`/`preparing`/`prepared` or `ordered`/`delivered`). No enforced transition order — staff may jump or revert freely |
@@ -304,13 +305,78 @@ Design: WebSocket connection per page; small manager in FastAPI (`ConnectionMana
 
 ---
 
+## 9A. Food Image Storage — Upload, Serve, Cache (S3)
+
+**Goal:** staff upload a photo for a menu item once, it is stored durably, the item's `menu.image_url` holds the served URL, and the page stays fast. This design is S3-ready by construction: moving from local-disk dev to S3 requires **zero frontend changes and zero schema changes**.
+
+### 9A.1 Architecture
+
+```
+Browser (menu editor)
+   │  multipart file + item_name          (FileReader for preview only — never base64 in the DB)
+   ▼
+POST /api/v1/uploads   (JWT, role employee/admin)
+   │
+   ├─ 1. Validate: content-type in {jpeg, png, webp} AND size ≤ DEV_UPLOAD_MAX_SIZE_MB
+   ├─ 2. Normalize + resize to ~640px wide, re-encode WebP (Pillow)   ← smaller, faster loads
+   ├─ 3. Filename: slugify(item_name) + "-" + 8-char unique suffix + ".webp"
+   │       e.g. "hazelnut-latte-x9f2k1q4.webp"   (never the raw name — see below)
+   └─ 4. Storage driver (chosen by DEV_STORAGE_DRIVER):
+          · local → writes to DEV_UPLOAD_DIR (mounted at /images), returns "/images/<file>"
+          · s3    → boto3 put_object to DEV_S3_BUCKET, returns the object URL
+                    (S3 URL, or DEV_S3_CDN_URL-prefixed when a CDN is set)
+   → response { "image_url": "<url>" }
+```
+
+The frontend `POST`s the returned `image_url` into `POST`/`PATCH /menu`, so the DB stores only a URL string.
+
+### 9A.2 Why NOT "filename = exact item name"
+
+Raw food names contain spaces, `₹`, emojis, accented chars, apostrophes and slashes — they must be percent-encoded in URLs, can collide, and can enable path traversal. **The backend always generates** `slugify(item_name)-<8char>.webp`:
+
+- `slugify`: lowercase; replace every non `[a-z0-9]` run with `-`; collapse; strip leading/trailing `-`.
+- unique suffix: 8 random hex chars (`secrets.token_hex(4)`) — collisions impossible.
+- extension is decided by the re-encode target (`.webp`), never taken from the client filename.
+
+Store the slug's display relationship in the DB (`item_name` column); the filename never needs to match an item exactly.
+
+### 9A.3 Storage driver abstraction (S3-ready)
+
+Implement a small internal service, e.g. `src/services/storage/storage.py`, exposing:
+
+```
+save_image(file_bytes: bytes, slug: str, content_type: str) -> str   # public URL or relative path
+```
+
+- **Local driver** (`DEV_STORAGE_DRIVER=local`): writes to `DEV_UPLOAD_DIR`, and `main.py` mounts `app.mount("/images", StaticFiles(directory=DEV_UPLOAD_DIR))`. Returns `/images/<file>`. This keeps the demo fully offline-capable.
+- **S3 driver** (`DEV_STORAGE_DRIVER=s3`): `boto3` `put_object` on `DEV_S3_BUCKET` with `ContentType` + `Cache-Control: public, max-age=31536000, immutable`. Returns `<DEV_S3_CDN_URL>/<key>` when set, else the bucket object URL. Follow `define/S3-SETUP-GUIDE.md` to create the bucket, IAM user and CloudFront.
+
+### 9A.4 Serving + caching (keeps the menu fast)
+
+- **Relative `/images/...`** are served by FastAPI in dev; **absolute S3/CDN URLs** are used in prod (CloudFront in front of S3 = edge cache).
+- All uploaded objects get `Cache-Control: public, max-age=31536000, immutable` (never mutated — a new upload is a new URL), so repeat visits are instant.
+- **Frontend correctness (mandatory):** food `<img>` tags use a single `getImageUrl()` helper: absolute URLs pass through unchanged; relative paths are prefixed with `VITE_IMAGE_BASE_URL`; empty `image_url` renders the branded placeholder. Never hardcode an origin inside a component.
+- **Perf expectation (answers "will the menu page lag?"):**
+  - Menu text (name/desc/price) is one small JSON GET — milliseconds, not visible.
+  - Images load **in parallel** and, with `loading="lazy"` + `decoding="async"` + the existing `aspect-[4/3]` placeholder box, the page paints text instantly while photos stream in — no layout shift, no page-visible lag.
+  - `640px WebP` uploads (~30–100 KB) are the only payload served, so even first cold loads are quick; CloudFront + immutable caching make re-visits instant.
+
+### 9A.5 Security & rules
+
+1. `POST /api/v1/uploads` is **JWT-protected (employee/admin)** — re-validated on the backend like every other staff action. Customers never upload.
+2. Server-side validation only: reject anything that is not a decodable jpeg/png/webp and anything over `DEV_UPLOAD_MAX_SIZE_MB`.
+3. Filenames are backend-generated (slug + hex suffix). Never trust the client-provided filename.
+4. `DEV_UPLOAD_DIR` is gitignored. Nothing runtime-written is ever committed to the repo.
+
+---
+
 ## 10. Seed Data & Environment
 
 ### 10.1 Seed Data
 
 - Seed one **admin** account (e.g. thameem@restaurant.com / hashed password) and one **employee** (email only, password NULL so it can be exercised through `/signup`).
 - Seed a sample menu with categories & prices in ₹ matching the reference site (Coffee, Cold Brew, Hot Luxury Teas, Coffee Beans).
-- Food images: use **placeholders** (branded color/grey boxes). Menu items carry an `image_url` field (nullable). When `image_url` is NULL the frontend renders the placeholder box. To add a real image later, simply set `image_url` on the item — no schema change needed.
+- Food images: seed items carry `image_url = NULL` so the frontend renders the branded placeholder box. Real photos are added by staff from the menu UI: pick a photo in the Add/Edit item modal → it is uploaded to `POST /api/v1/uploads` → the file is stored by the storage driver (S3 or local fallback, Section 9A) → the returned URL is written to `menu.image_url`. `image_url` is just a URL string, so no schema change is needed when real images arrive.
 
 ### 10.2 Backend `.env` (FastAPI — DEV only)
 
@@ -320,7 +386,7 @@ All keys are prefixed `DEV_` to make it explicit these are **dev/sandbox-only** 
 |---|---|---|
 | `DEV_APP_NAME` | `restaurant-order-management` | App/brand name shown in email bill |
 | `DEV_PORT` | `8000` | Uvicorn bind port (`HOST` defaults to `0.0.0.0`) |
-| `DEV_DATABASE_URL` | `sqlite:///./restaurant.db` | DB driver/DSN (or Postgres locally) |
+| `DEV_DATABASE_URL` | `sqlite:///./data/restaurant.db` | SQLAlchemy DSN. Dev default = SQLite; production/dev-on-AWS = PostgreSQL: `postgresql+psycopg2://USER:PASS@<rds-endpoint>:5432/<db>?sslmode=require` — step-by-step in `RDS-SETUP-GUIDE.md` (repo root). Switching DBs = change this one line |
 | `DEV_JWT_SECRET_KEY` | `change-me-strong-secret` | HMAC signing secret for JWT (algorithm hardcoded `HS256`) |
 | `DEV_JWT_EXPIRE_MINUTES` | `480` | Token lifetime (8h work shift) |
 | `DEV_CORS_ORIGINS` | `http://localhost:5173,http://localhost:3000` | Comma-separated allowed frontend origins |
@@ -338,12 +404,23 @@ All keys are prefixed `DEV_` to make it explicit these are **dev/sandbox-only** 
 | `DEV_SMTP_PASSWORD` | (16-char app password) | SMTP password (Gmail App Password — needs 2FA) |
 | `DEV_SMTP_SENDER` | (same gmail) | From: address shown on the bill email |
 | `DEV_AUTH_RATE_LIMIT` | `5/min` | slowapi limit on `/auth/login` + `/auth/signup` per IP (5 attempts per minute) |
+| `DEV_STORAGE_DRIVER` | `s3` | Image storage backend: `s3` (AWS S3) or `local` (offline dev fallback that writes into `DEV_UPLOAD_DIR`) |
+| `DEV_UPLOAD_DIR` | `./uploads` | Local-fallback directory for uploaded images (gitignored, never committed) |
+| `DEV_UPLOAD_MAX_SIZE_MB` | `5` | Maximum accepted upload size in MB |
+| `DEV_UPLOAD_ALLOWED_TYPES` | `jpeg,png,webp` | Comma-separated allowed image content types |
+| `DEV_S3_BUCKET` | `soroco-food-images` | S3 bucket that stores food images |
+| `DEV_S3_REGION` | `ap-south-1` | S3 bucket region |
+| `DEV_S3_ACCESS_KEY_ID` | `(IAM) key` | AWS access key with PutObject/GetObject/ListBucket on the bucket |
+| `DEV_S3_SECRET_ACCESS_KEY` | `(IAM) secret` | AWS secret access key |
+| `DEV_S3_CDN_URL` | `https://dxxxx.cloudfront.net` | Optional CloudFront/CDN origin in front of the bucket. Empty → the backend returns the S3 object URL (`https://<bucket>.s3.<region>.amazonaws.com/<key>`) |
 
 ```dotenv
 # backend/.env — DEV/sandbox only. Do NOT reuse these keys in production.
 DEV_APP_NAME=restaurant-order-management
 DEV_PORT=8000
-DEV_DATABASE_URL=sqlite:///./restaurant.db
+DEV_DATABASE_URL=sqlite:///./data/restaurant.db
+# RDS PostgreSQL (AWS) — see RDS-SETUP-GUIDE.md, change only this line:
+# DEV_DATABASE_URL=postgresql+psycopg2://postgres:PASSWORD@soroco-restaurant-db.c0f2k1x9t3oy.ap-south-1.rds.amazonaws.com:5432/restaurant_db?sslmode=require
 DEV_JWT_SECRET_KEY=change-me-strong-secret
 DEV_JWT_EXPIRE_MINUTES=480
 DEV_CORS_ORIGINS=http://localhost:5173,http://localhost:3000
@@ -362,6 +439,16 @@ DEV_SMTP_USER=restaurant.dev@gmail.com
 DEV_SMTP_PASSWORD=your-16-char-app-password
 DEV_SMTP_SENDER=restaurant.dev@gmail.com
 DEV_AUTH_RATE_LIMIT=5/min
+# Image storage (Section 9A). local = offline fallback; s3 = real bucket.
+DEV_STORAGE_DRIVER=local
+DEV_UPLOAD_DIR=./uploads
+DEV_UPLOAD_MAX_SIZE_MB=5
+DEV_UPLOAD_ALLOWED_TYPES=jpeg,png,webp
+DEV_S3_BUCKET=soroco-food-images
+DEV_S3_REGION=ap-south-1
+DEV_S3_ACCESS_KEY_ID=
+DEV_S3_SECRET_ACCESS_KEY=
+DEV_S3_CDN_URL=
 ```
 
 ### 10.3 Frontend `.env` (React/Vite)
@@ -375,7 +462,7 @@ DEV_AUTH_RATE_LIMIT=5/min
 | `VITE_WS_BASE_URL` | `ws://localhost:8000/api/v1` | WebSocket base (same backend). Connect to e.g. `ws://localhost:8000/api/v1/ws/menu` |
 | `VITE_RAZORPAY_KEY_ID` | `rzp_test_xxxx` | Razorpay checkout key id (client-side) — same test key as backend |
 | `VITE_PAYMENT_METHODS` | `phonepay,razorpay` | Which methods to render in the cart (comma-separated) |
-| `VITE_IMAGE_BASE_URL` | `/images` | Where food item images are served/uploaded; placeholder when empty |
+| `VITE_IMAGE_BASE_URL` | `http://localhost:8000` | **Origin** that serves food images at `/images/...`. Dev: the FastAPI backend (mount `/images`) → `http://localhost:8000`. Prod: your CloudFront/S3 origin, e.g. `https://dxxxx.cloudfront.net` (no trailing slash), or empty `""` when a reverse proxy serves `/images` same-origin. The frontend helper joins `VITE_IMAGE_BASE_URL + image_url` for **relative** paths (e.g. `/images/hazelnut-latte-x9f2.webp`) and uses any **absolute** (`http/https`) `image_url` as-is. Never hardcode full URLs in components — always go through the image URL helper (see the frontend prompt). |
 
 ```dotenv
 # frontend/.env.development sample
@@ -384,7 +471,9 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 VITE_WS_BASE_URL=ws://localhost:8000/api/v1
 VITE_RAZORPAY_KEY_ID=rzp_test_xxxx
 VITE_PAYMENT_METHODS=phonepay,razorpay
-VITE_IMAGE_BASE_URL=/images
+# Local dev: backend serves /images/... on this origin.
+# Prod: set to your S3/CloudFront origin (or empty "" behind a same-origin proxy).
+VITE_IMAGE_BASE_URL=http://localhost:8000
 ```
 
 > **Rules:** never commit real secrets (`.env` in `.gitignore`, provide `.env.example` files). All backend keys carry the `DEV_` prefix because they are dev/sandbox-only — sandbox payment keys and the free SMTP credentials must never be used in production. Keep the same `RAZORPAY_KEY_ID` client & server-side; PhonePe is entirely server-side so no PhonePe keys appear in the frontend.
@@ -401,8 +490,9 @@ VITE_IMAGE_BASE_URL=/images
 6. Order total/unit prices are computed server-side at payment success.
 7. Payment sandbox only — never switch to live keys in this build.
 8. `/auth/login` + `/auth/signup` are rate-limited (slowapi) to prevent brute force.
-9. **DB:** SQLite for dev (`sqlite:///./restaurant.db`). Concurrency is acceptable for the demo; if we later switch to Postgres the DSN in `.env` changes only. (On capacity we can enable SQLite WAL mode if "database is locked" errors appear.)
+9. **DB:** SQLite for dev (`sqlite:///./data/restaurant.db`). Concurrency is acceptable for the demo; if we later switch to Postgres the DSN in `.env` changes only. (On capacity we can enable SQLite WAL mode if "database is locked" errors appear.) **AWS RDS PostgreSQL:** optional — `RDS-SETUP-GUIDE.md` (repo root) has the console walkthrough + the `postgresql+psycopg2://` URL to paste into `DEV_DATABASE_URL` (add `psycopg2-binary` to `requirements.txt` when using Postgres).
 10. **JWT lifetime:** fixed `DEV_JWT_EXPIRE_MINUTES=480` (8h staff shift). No refresh-token rotation for now; a staff member re-logs in after expiry. Revisit if production needs longer-lived sessions.
+11. **Uploads (Section 9A):** `POST /api/v1/uploads` is protected (employee/admin) and re-validated server-side; type/size always validated; filenames are backend-generated slugs, never raw client values.
 
 ---
 
@@ -414,6 +504,8 @@ VITE_IMAGE_BASE_URL=/images
 - [ ] `/orders` blocks unauthenticated → `/login`; login returns JWT with role; kitchen stream is live and FIFO; status buttons cycle In-Queue → Preparing → Prepared **and persist across page refresh / server restart**; marking Delivered moves the order to completed.
 - [ ] Staff menu controls add/remove/availability update over WS for all connected menu viewers and **persist `is_available` so a server restart keeps items unavailable**; backend rejects these without a valid token.
 - [ ] Menu items with a NULL `image_url` render the branded placeholder; setting `image_url` later shows the real image.
+- [ ] Staff can upload a photo in the Add/Edit item modal: `POST /api/v1/uploads` validates type/size, stores it (S3 or local fallback), and the returned `image_url` is written to the item; the image is then served (dev `/images/...` or S3/CDN URL) and survives reload.
+- [ ] Food images load fast: `loading="lazy"` + `decoding="async"` + `aspect-[4/3]` placeholder (no layout shift), and uploaded objects carry `Cache-Control: public, max-age=31536000, immutable`.
 - [ ] `/auth/login` and `/auth/signup` return 429 after too many attempts in a short window.
 - [ ] `/admin` allows admin; employee gets "Unauthorized", persists on page.
 - [ ] Admin can create employee (email-only) then that email can complete `/signup` and log in.

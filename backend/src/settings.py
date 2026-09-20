@@ -1,4 +1,84 @@
-import os
+"""Application settings — all values come from DEV_-prefixed env vars (.env)."""
 
-APP_NAME: str = os.getenv("APP_NAME", "restaurant-api")
-APP_ENV: str = os.getenv("APP_ENV", "development")
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Runtime configuration for the Soroco House backend (dev/sandbox only)."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_prefix="DEV_",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    # ── App ──────────────────────────────────────────────────────────────────
+    app_name: str = "restaurant-order-management"
+    host: str = "0.0.0.0"
+    port: int = 8000
+
+    # ── Database ─────────────────────────────────────────────────────────────
+    database_url: str = "sqlite:///./data/restaurant.db"
+
+    # ── Auth (JWT HS256) ─────────────────────────────────────────────────────
+    jwt_secret_key: str = "change-me-strong-secret"
+    jwt_expire_minutes: int = 480
+    auth_rate_limit: str = "5/minute"
+
+    # ── CORS ─────────────────────────────────────────────────────────────────
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    # ── Payments ──────────────────────────────────────────────────────────────
+    # mock (default until real gateways are integrated) | phonepay | razorpay
+    payment_provider: str = "mock"
+    phonepay_merchant_id: str = "MERCHANTUAT"
+    phonepay_base_url: str = "https://api-preprod.phonepe.com/apis/pg-sandbox"
+    phonepay_salt_key: str = ""
+    phonepay_salt_index: int = 1
+    razorpay_key_id: str = "rzp_test_xxxx"
+    razorpay_key_secret: str = ""
+
+    # ── Bill email ───────────────────────────────────────────────────────────
+    email_mock: bool = False
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_sender: str = ""
+
+    # ── Image storage (Section 9A / 12) ──────────────────────────────────────
+    storage_driver: str = "local"
+    upload_dir: str = "./uploads"
+    upload_max_size_mb: int = 5
+    upload_allowed_types: str = "jpeg,png,webp"
+
+    # S3 driver (used only when storage_driver == "s3")
+    s3_bucket: str = "soroco-food-images"
+    s3_region: str = "ap-south-1"
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_cdn_url: str = ""
+
+    # ── Uploaded image serving ───────────────────────────────────────────────
+    @property
+    def upload_max_bytes(self) -> int:
+        return self.upload_max_size_mb * 1024 * 1024
+
+    @property
+    def upload_allowed_type_list(self) -> list[str]:
+        return [t.strip() for t in self.upload_allowed_types.split(",") if t.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

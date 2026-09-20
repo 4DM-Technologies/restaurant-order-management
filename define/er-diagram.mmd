@@ -1,62 +1,64 @@
 erDiagram
     accounts {
         uuid account_uuid PK
-        int account_id
-        varchar account_name
-        varchar account_email UK
-        text account_password
-        enum account_role
-        timestamp created_at
-        varchar created_by
-        timestamp updated_at
-        varchar updated_by
+        int account_id UK "unique"
+        varchar account_name NN
+        varchar account_email UK "unique, not null"
+        text account_password NULL
+        enum account_role "employee | admin, not null"
+        timestamp created_at NN
+        varchar created_by NN "default SYSTEM"
+        timestamp updated_at NULL
+        varchar updated_by NULL
     }
 
     menu {
         uuid menu_uuid PK
-        int menu_id
-        varchar category
-        varchar item_name
-        text item_description
-        decimal standard_price
-        decimal small_price
-        decimal large_price
+        int menu_id UK "unique"
+        varchar category NN
+        varchar item_name NN
+        text item_description NULL
+        decimal standard_price NULL "(10,2)"
+        decimal small_price NULL "(10,2)"
+        decimal large_price NULL "(10,2)"
         varchar image_url NULL
-        boolean is_available
-        timestamp created_at
-        varchar created_by
-        timestamp updated_at
-        varchar updated_by
+        boolean is_available NN "default true"
+        timestamp created_at NN
+        varchar created_by NN "default SYSTEM"
+        timestamp updated_at NULL
+        varchar updated_by NULL
     }
 
     orders {
         uuid order_uuid PK
-        int order_id
-        int order_number
-        varchar table_name
-        varchar customer_name
-        varchar phone_number
-        enum payment_method
-        enum payment_status
-        varchar payment_transaction_id
-        enum kitchen_status
-        enum order_status
-        decimal total_price
-        timestamp created_at
-        varchar created_by
-        timestamp updated_at
-        varchar updated_by
+        int order_id UK "unique"
+        int order_number UK "unique, customer-facing"
+        varchar order_ref UK "unique, null, idempotency key"
+        varchar table_name NN
+        varchar customer_name NN
+        varchar phone_number NN
+        enum payment_method NN "phonepay | razorpay"
+        enum payment_status NN "success | failed | cancelled"
+        varchar payment_transaction_id NULL
+        enum kitchen_status NN "in_queue | preparing | prepared | delivered, default in_queue"
+        enum order_status NN "ordered | delivered, default ordered"
+        decimal total_price NN "(10,2)"
+        decimal tax NN "(10,2), default 0"
+        timestamp created_at NN
+        varchar created_by NN "default SYSTEM"
+        timestamp updated_at NULL
+        varchar updated_by NULL
     }
 
     order_items {
         uuid order_item_uuid PK
-        int order_item_id
-        uuid order_uuid FK
-        uuid menu_uuid FK
-        enum selected_size
-        int quantity
-        decimal unit_price
-        decimal line_total
+        int order_item_id UK "unique"
+        uuid order_uuid FK "references orders.order_uuid, on delete cascade"
+        uuid menu_uuid FK "references menu.menu_uuid"
+        enum selected_size NULL "standard | small | large"
+        int quantity NN
+        decimal unit_price NN "(10,2)"
+        decimal line_total NN "(10,2)"
     }
 
     orders ||--o{ order_items : contains

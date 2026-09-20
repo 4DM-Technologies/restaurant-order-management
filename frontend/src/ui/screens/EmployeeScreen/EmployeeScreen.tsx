@@ -5,6 +5,7 @@ import Modal from '@/ui/reusables/Modal/Modal.tsx';
 import ConfirmDialog from '@/ui/reusables/ConfirmDialog/ConfirmDialog.tsx';
 import LoadingSkeleton from '@/ui/reusables/LoadingSkeleton/LoadingSkeleton.tsx';
 import EmptyState from '@/ui/reusables/EmptyState/EmptyState.tsx';
+import DelayedLoader from '@/ui/reusables/BrandLoader/DelayedLoader.tsx';
 import { useEmployeeVM } from '@/ui/screens/EmployeeScreen/EmployeeScreen.vm.ts';
 import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 import { UserStatusENUM } from '@/types/user/UserStatusENUM.ts';
@@ -126,7 +127,7 @@ export default function EmployeeScreen() {
 
       {/* Table */}
       {vm.isLoading ? (
-        <LoadingSkeleton variant="row" count={5} />
+        <DelayedLoader variant="inline" fallback={<LoadingSkeleton variant="row" count={5} />} />
       ) : vm.employees.length === 0 ? (
         <EmptyState
           icon={Users}

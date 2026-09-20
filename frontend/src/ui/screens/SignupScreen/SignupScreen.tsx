@@ -1,6 +1,6 @@
+import { AnimatePresence, motion } from 'framer-motion';
+import { CheckCircle2, Coffee, Mail, Lock, Loader2, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Coffee, Mail, Lock, User, Loader2, ArrowLeft } from 'lucide-react';
 import { useSignupVM } from '@/ui/screens/SignupScreen/SignupScreen.vm.ts';
 import type { PasswordStrength } from '@/ui/screens/SignupScreen/SignupScreen.vm.ts';
 
@@ -12,13 +12,13 @@ const STRENGTH_CONFIG: Record<PasswordStrength, { label: string; color: string; 
 
 export default function SignupScreen() {
   const {
-    name, setName,
     email, setEmail,
     password, setPassword,
     confirmPassword, setConfirmPassword,
     passwordStrength,
+    status, canSetPassword,
     isLoading, error,
-    handleSignup,
+    handleCheckEmail, handleActivate,
   } = useSignupVM();
 
   const strengthConfig = STRENGTH_CONFIG[passwordStrength];
@@ -44,7 +44,7 @@ export default function SignupScreen() {
             Join our team<br />of coffee lovers.
           </h2>
           <p className="font-body text-soroco-cream/70 text-lg leading-relaxed">
-            Create your account to start managing orders and delighting customers.
+            Your team account is ready — set a password to activate it and start working.
           </p>
         </div>
       </div>
@@ -75,45 +75,30 @@ export default function SignupScreen() {
             </div>
 
             <h1 className="font-display text-3xl sm:text-4xl font-bold text-soroco-charcoal mb-2">
-              Create Account
+              Activate Account
             </h1>
             <p className="font-body text-soroco-mocha mb-8">
-              Fill in your details to get started.
+              Enter the email your admin registered, then set your password.
             </p>
 
             {/* Error message */}
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                role="alert"
-                className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 font-body text-sm"
-              >
-                <span className="mt-0.5">⚠</span>
-                <span>{error}</span>
-              </motion.div>
-            )}
+            <AnimatePresence>
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  role="alert"
+                  className="mb-6 flex items-start gap-3 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 font-body text-sm"
+                >
+                  <span className="mt-0.5">⚠</span>
+                  <span>{error}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <form onSubmit={handleSignup} className="space-y-4" noValidate>
-              {/* Name */}
-              <div>
-                <label htmlFor="name" className="input-label">Full Name</label>
-                <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-soroco-tan pointer-events-none" />
-                  <input
-                    id="name"
-                    type="text"
-                    autoComplete="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Your full name"
-                    className="input-field pl-10"
-                    disabled={isLoading}
-                  />
-                </div>
-              </div>
-
-              {/* Email */}
+            {/* Step 1 — email check */}
+            <form onSubmit={handleCheckEmail} className="space-y-4" noValidate>
               <div>
                 <label htmlFor="email" className="input-label">Email Address</label>
                 <div className="relative">
@@ -126,93 +111,141 @@ export default function SignupScreen() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@soroco.coffee"
                     className="input-field pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || canSetPassword}
                   />
                 </div>
               </div>
 
-              {/* Password */}
-              <div>
-                <label htmlFor="password" className="input-label">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-soroco-tan pointer-events-none" />
-                  <input
-                    id="password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Min. 8 characters"
-                    className="input-field pl-10"
-                    disabled={isLoading}
-                  />
-                </div>
-                {/* Password strength indicator */}
-                {password.length > 0 && (
-                  <div className="mt-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-soroco-linen rounded-full overflow-hidden">
-                        <motion.div
-                          className={`h-full rounded-full ${strengthConfig.color}`}
-                          initial={{ width: 0 }}
-                          animate={{ width: '100%' }}
-                          key={strengthConfig.width}
-                          transition={{ duration: 0.3 }}
-                          style={{ maxWidth: strengthConfig.width === 'w-1/3' ? '33%' : strengthConfig.width === 'w-2/3' ? '66%' : '100%' }}
-                        />
-                      </div>
-                      <span className={`font-body text-xs font-medium ${
-                        passwordStrength === 'weak' ? 'text-red-500' :
-                        passwordStrength === 'medium' ? 'text-amber-600' : 'text-green-600'
-                      }`}>
-                        {strengthConfig.label}
-                      </span>
-                    </div>
-                  </div>
+              {/* Confirmed account notice */}
+              <AnimatePresence>
+                {canSetPassword && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.25 }}
+                    className="flex items-start gap-2.5 bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 font-body text-sm"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>Account found for <strong>{email.trim()}</strong>. Create a password to activate it.</span>
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
 
-              {/* Confirm Password */}
-              <div>
-                <label htmlFor="confirmPassword" className="input-label">Confirm Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-soroco-tan pointer-events-none" />
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Repeat password"
-                    className={`input-field pl-10 ${
-                      confirmPassword.length > 0 && confirmPassword !== password
-                        ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
-                        : ''
-                    }`}
-                    disabled={isLoading}
-                  />
-                </div>
-                {confirmPassword.length > 0 && confirmPassword !== password && (
-                  <p className="mt-1 font-body text-xs text-red-500">Passwords don't match</p>
-                )}
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="btn-primary w-full mt-2"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Creating account…
-                  </>
-                ) : (
-                  'Create Account'
-                )}
-              </button>
+              {!canSetPassword && (
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  className="btn-primary w-full mt-2"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Checking…
+                    </>
+                  ) : (
+                    'Continue'
+                  )}
+                </button>
+              )}
             </form>
+
+            {/* Step 2 — password (only after account confirmed) */}
+            <AnimatePresence>
+              {canSetPassword && (
+                <motion.form
+                  key="password-step"
+                  onSubmit={handleActivate}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, ease: 'easeOut' }}
+                  className="space-y-4"
+                  noValidate
+                >
+                  {/* Password */}
+                  <div>
+                    <label htmlFor="password" className="input-label">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-soroco-tan pointer-events-none" />
+                      <input
+                        id="password"
+                        type="password"
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Min. 8 characters"
+                        className="input-field pl-10"
+                        disabled={isLoading}
+                      />
+                    </div>
+                    {/* Password strength indicator */}
+                    {password.length > 0 && (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-soroco-linen rounded-full overflow-hidden">
+                            <motion.div
+                              className={`h-full rounded-full ${strengthConfig.color}`}
+                              initial={{ width: 0 }}
+                              animate={{ width: '100%' }}
+                              key={strengthConfig.width}
+                              transition={{ duration: 0.3 }}
+                              style={{ maxWidth: strengthConfig.width === 'w-1/3' ? '33%' : strengthConfig.width === 'w-2/3' ? '66%' : '100%' }}
+                            />
+                          </div>
+                          <span className={`font-body text-xs font-medium ${
+                            passwordStrength === 'weak' ? 'text-red-500' :
+                            passwordStrength === 'medium' ? 'text-amber-600' : 'text-green-600'
+                          }`}>
+                            {strengthConfig.label}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Confirm Password */}
+                  <div>
+                    <label htmlFor="confirmPassword" className="input-label">Confirm Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-soroco-tan pointer-events-none" />
+                      <input
+                        id="confirmPassword"
+                        type="password"
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repeat password"
+                        className={`input-field pl-10 ${
+                          confirmPassword.length > 0 && confirmPassword !== password
+                            ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
+                            : ''
+                        }`}
+                        disabled={isLoading}
+                      />
+                    </div>
+                    {confirmPassword.length > 0 && confirmPassword !== password && (
+                      <p className="mt-1 font-body text-xs text-red-500">Passwords don't match</p>
+                    )}
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="btn-primary w-full mt-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Activating…
+                      </>
+                    ) : (
+                      'Activate Account'
+                    )}
+                  </button>
+                </motion.form>
+              )}
+            </AnimatePresence>
 
             {/* Footer links */}
             <div className="mt-8 space-y-3 text-center">

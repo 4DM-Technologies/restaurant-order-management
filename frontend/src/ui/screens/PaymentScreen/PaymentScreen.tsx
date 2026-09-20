@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Smartphone, CreditCard, Wallet, QrCode, Shield } from 'lucide-react';
+import { X, CreditCard, Smartphone, Wallet, QrCode, Shield } from 'lucide-react';
 import { PaymentMethodENUM } from '@/types/order/PaymentMethodENUM.ts';
+import { paymentService } from '@/services/screens/paymentScreenService/PaymentService.ts';
 import type { CheckoutOrderState } from '@/ui/screens/CheckoutScreen/CheckoutScreen.vm';
 
 /* ── Helpers ── */
@@ -10,7 +11,10 @@ function formatPrice(amount: number): string {
   return `₹${amount.toFixed(2)}`;
 }
 
-/* ── PhonePe UPI Payment UI ── */
+const PHONEPE_COLOR  = '#5F259F';
+const RAZORPAY_COLOR = '#3395FF';
+
+/* ── PhonePe UPI Payment UI (light) ── */
 interface PhonePeUIProps {
   total: number;
   onPay: () => void;
@@ -24,62 +28,86 @@ function PhonePeUI({ total, onPay, onCancel, isProcessing }: PhonePeUIProps) {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/20">
-        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-          <Smartphone className="w-6 h-6 text-white" />
-        </div>
+      <div className="flex items-center gap-3 mb-6 pb-6 border-b border-soroco-linen">
+        <span className="w-12 h-12 rounded-xl bg-white border border-soroco-linen shadow-warm-sm flex items-center justify-center px-1.5">
+          <img
+            src="/brand/phonepay.svg"
+            alt="PhonePe"
+            className="max-h-7 w-auto object-contain"
+          />
+        </span>
         <div>
-          <h2 className="font-display text-xl font-bold text-white">PhonePe</h2>
-          <p className="text-sm text-purple-200">UPI Payment</p>
+          <h2 className="font-display text-xl font-bold text-soroco-charcoal">PhonePe</h2>
+          <p className="text-sm font-body font-medium" style={{ color: PHONEPE_COLOR }}>
+            UPI Payment
+          </p>
         </div>
       </div>
 
       {/* Amount */}
-      <div className="text-center mb-8">
-        <p className="text-purple-200 text-sm font-body mb-1">Amount to Pay</p>
-        <p className="font-display text-4xl font-bold text-white">{formatPrice(total)}</p>
+      <div
+        className="rounded-2xl py-5 mb-6 text-center"
+        style={{
+          backgroundColor: `${PHONEPE_COLOR}0D`,
+          border: `1px solid ${PHONEPE_COLOR}26`,
+        }}
+      >
+        <p className="text-sm font-body text-soroco-tan mb-1">Amount to Pay</p>
+        <p
+          className="font-body text-4xl font-bold tabular-nums"
+          style={{ color: PHONEPE_COLOR }}
+        >
+          {formatPrice(total)}
+        </p>
       </div>
 
-      {/* QR Code Placeholder */}
+      {/* QR code placeholder */}
       <div className="flex flex-col items-center mb-6">
-        <div className="w-40 h-40 bg-white rounded-2xl p-3 flex items-center justify-center mb-3">
-          <div className="w-full h-full rounded-xl bg-gradient-to-br from-purple-100 to-purple-200 flex flex-col items-center justify-center gap-2">
-            <QrCode className="w-16 h-16 text-purple-700" />
-            <p className="text-xs text-purple-600 font-semibold text-center leading-tight">
+        <div className="w-40 h-40 bg-white border border-soroco-linen rounded-2xl p-3 flex items-center justify-center mb-3 shadow-warm-sm">
+          <div
+            className="w-full h-full rounded-xl flex flex-col items-center justify-center gap-2"
+            style={{ backgroundColor: `${PHONEPE_COLOR}0A` }}
+          >
+            <QrCode className="w-16 h-16" style={{ color: PHONEPE_COLOR }} />
+            <p
+              className="text-xs font-semibold text-center leading-tight"
+              style={{ color: PHONEPE_COLOR }}
+            >
               Scan to Pay
             </p>
           </div>
         </div>
-        <p className="text-xs text-purple-200 font-body">Scan QR code with PhonePe app</p>
+        <p className="text-xs text-soroco-tan font-body">Scan QR code with PhonePe app</p>
       </div>
 
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex-1 h-px bg-white/20" />
-        <span className="text-xs text-purple-200 font-body uppercase tracking-widest">or enter UPI ID</span>
-        <div className="flex-1 h-px bg-white/20" />
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex-1 h-px bg-soroco-linen" />
+        <span className="text-xs text-soroco-tan font-body uppercase tracking-widest">
+          or enter UPI ID
+        </span>
+        <div className="flex-1 h-px bg-soroco-linen" />
       </div>
 
-      {/* UPI ID Input */}
       <div className="mb-6">
         <input
           type="text"
           value={upiId}
           onChange={(e) => setUpiId(e.target.value)}
           placeholder="yourname@paytm / @phonepe"
-          className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder:text-purple-300 font-body text-sm focus:outline-none focus:border-white/60 focus:ring-2 focus:ring-white/20 transition-all"
+          className="input-field"
         />
       </div>
 
-      {/* Pay Button */}
       <button
         type="button"
         onClick={onPay}
         disabled={isProcessing}
-        className="w-full bg-white text-purple-700 font-body font-bold py-4 rounded-xl text-lg hover:bg-purple-50 transition-all duration-200 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="w-full text-white font-body font-bold py-4 rounded-xl text-lg transition-all duration-200 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-110 flex items-center justify-center gap-2"
+        style={{ backgroundColor: PHONEPE_COLOR }}
       >
         {isProcessing ? (
           <>
-            <span className="w-5 h-5 border-2 border-purple-700/30 border-t-purple-700 rounded-full animate-spin" />
+            <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
             Processing…
           </>
         ) : (
@@ -91,7 +119,7 @@ function PhonePeUI({ total, onPay, onCancel, isProcessing }: PhonePeUIProps) {
         type="button"
         onClick={onCancel}
         disabled={isProcessing}
-        className="w-full mt-3 py-3 text-sm text-purple-200 hover:text-white font-body transition-colors disabled:opacity-50"
+        className="w-full mt-3 py-3 text-sm text-soroco-tan hover:text-soroco-espresso font-body transition-colors disabled:opacity-50"
       >
         Cancel Payment
       </button>
@@ -99,7 +127,7 @@ function PhonePeUI({ total, onPay, onCancel, isProcessing }: PhonePeUIProps) {
   );
 }
 
-/* ── Razorpay Payment UI ── */
+/* ── Razorpay Payment UI (light) ── */
 type RazorpayTab = 'card' | 'upi' | 'wallet';
 
 interface RazorpayUIProps {
@@ -136,24 +164,41 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
   return (
     <div className="w-full">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6 pb-6 border-b border-white/20">
-        <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-          <Shield className="w-6 h-6 text-white" />
-        </div>
+      <div className="flex items-center gap-3 mb-6 pb-6 border-b border-soroco-linen">
+        <span className="w-12 h-12 rounded-xl bg-white border border-soroco-linen shadow-warm-sm flex items-center justify-center px-1.5">
+          <img
+            src="/brand/razorpay.svg"
+            alt="Razorpay"
+            className="max-h-7 w-auto object-contain"
+          />
+        </span>
         <div>
-          <h2 className="font-display text-xl font-bold text-white">Razorpay</h2>
-          <p className="text-sm text-blue-200">Secure Payment Gateway</p>
+          <h2 className="font-display text-xl font-bold text-soroco-charcoal">Razorpay</h2>
+          <p className="text-sm font-body font-medium" style={{ color: RAZORPAY_COLOR }}>
+            Secure Payment Gateway
+          </p>
         </div>
       </div>
 
       {/* Amount */}
-      <div className="text-center mb-6">
-        <p className="text-blue-200 text-sm font-body mb-1">Amount to Pay</p>
-        <p className="font-display text-4xl font-bold text-white">{formatPrice(total)}</p>
+      <div
+        className="rounded-2xl py-4 mb-6 text-center"
+        style={{
+          backgroundColor: `${RAZORPAY_COLOR}0D`,
+          border: `1px solid ${RAZORPAY_COLOR}26`,
+        }}
+      >
+        <p className="text-sm font-body text-soroco-tan mb-1">Amount to Pay</p>
+        <p
+          className="font-body text-4xl font-bold tabular-nums"
+          style={{ color: '#0A3D7C' }}
+        >
+          {formatPrice(total)}
+        </p>
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-white/10 rounded-xl p-1 mb-6 gap-1">
+      <div className="flex bg-soroco-parchment rounded-xl p-1 mb-6 gap-1">
         {tabs.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -162,8 +207,8 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
             className={[
               'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-body font-semibold transition-all duration-200',
               activeTab === key
-                ? 'bg-white text-blue-700 shadow-sm'
-                : 'text-blue-200 hover:text-white',
+                ? 'bg-white text-[#0A3D7C] shadow-sm border border-soroco-linen'
+                : 'text-soroco-mocha hover:text-soroco-charcoal',
             ].join(' ')}
           >
             <Icon className="w-3.5 h-3.5" />
@@ -184,7 +229,7 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
             className="space-y-4 mb-6"
           >
             <div>
-              <label className="text-xs text-blue-200 font-body font-semibold uppercase tracking-wider mb-1.5 block">
+              <label className="text-xs text-soroco-tan font-body font-semibold uppercase tracking-wider mb-1.5 block">
                 Card Number
               </label>
               <input
@@ -193,12 +238,12 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
                 onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
                 placeholder="1234 5678 9012 3456"
                 maxLength={19}
-                className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder:text-blue-300/60 font-body text-sm focus:outline-none focus:border-white/60 transition-all"
+                className="input-field"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-blue-200 font-body font-semibold uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs text-soroco-tan font-body font-semibold uppercase tracking-wider mb-1.5 block">
                   Expiry
                 </label>
                 <input
@@ -207,11 +252,11 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
                   onChange={(e) => setExpiry(formatExpiry(e.target.value))}
                   placeholder="MM/YY"
                   maxLength={5}
-                  className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder:text-blue-300/60 font-body text-sm focus:outline-none focus:border-white/60 transition-all"
+                  className="input-field"
                 />
               </div>
               <div>
-                <label className="text-xs text-blue-200 font-body font-semibold uppercase tracking-wider mb-1.5 block">
+                <label className="text-xs text-soroco-tan font-body font-semibold uppercase tracking-wider mb-1.5 block">
                   CVV
                 </label>
                 <input
@@ -220,7 +265,7 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
                   onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   placeholder="•••"
                   maxLength={4}
-                  className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder:text-blue-300/60 font-body text-sm focus:outline-none focus:border-white/60 transition-all"
+                  className="input-field"
                 />
               </div>
             </div>
@@ -236,7 +281,7 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
             transition={{ duration: 0.2 }}
             className="mb-6"
           >
-            <label className="text-xs text-blue-200 font-body font-semibold uppercase tracking-wider mb-1.5 block">
+            <label className="text-xs text-soroco-tan font-body font-semibold uppercase tracking-wider mb-1.5 block">
               UPI ID
             </label>
             <input
@@ -244,7 +289,7 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
               value={upiId}
               onChange={(e) => setUpiId(e.target.value)}
               placeholder="yourname@bank"
-              className="w-full bg-white/10 border border-white/30 rounded-xl px-4 py-3 text-white placeholder:text-blue-300/60 font-body text-sm focus:outline-none focus:border-white/60 transition-all"
+              className="input-field"
             />
           </motion.div>
         )}
@@ -263,7 +308,7 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
                 <button
                   key={wallet}
                   type="button"
-                  className="py-3 px-4 rounded-xl bg-white/10 border border-white/20 text-blue-100 text-sm font-body font-medium hover:bg-white/20 hover:border-white/40 transition-all"
+                  className="py-3 px-4 rounded-xl bg-white border border-soroco-linen text-soroco-charcoal text-sm font-body font-medium hover:border-soroco-tan/60 transition-all"
                 >
                   {wallet}
                 </button>
@@ -273,16 +318,16 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
         )}
       </AnimatePresence>
 
-      {/* Pay Button */}
       <button
         type="button"
         onClick={onPay}
         disabled={isProcessing}
-        className="w-full bg-white text-blue-700 font-body font-bold py-4 rounded-xl text-lg hover:bg-blue-50 transition-all duration-200 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="w-full text-white font-body font-bold py-4 rounded-xl text-lg transition-all duration-200 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-110 flex items-center justify-center gap-2"
+        style={{ backgroundColor: RAZORPAY_COLOR }}
       >
         {isProcessing ? (
           <>
-            <span className="w-5 h-5 border-2 border-blue-700/30 border-t-blue-700 rounded-full animate-spin" />
+            <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
             Processing…
           </>
         ) : (
@@ -294,7 +339,7 @@ function RazorpayUI({ total, onPay, onCancel, isProcessing }: RazorpayUIProps) {
         type="button"
         onClick={onCancel}
         disabled={isProcessing}
-        className="w-full mt-3 py-3 text-sm text-blue-200 hover:text-white font-body transition-colors disabled:opacity-50"
+        className="w-full mt-3 py-3 text-sm text-soroco-tan hover:text-soroco-espresso font-body transition-colors disabled:opacity-50"
       >
         Cancel Payment
       </button>
@@ -308,15 +353,19 @@ function ProcessingOverlay({ total }: { total: number }) {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 rounded-3xl z-10 gap-5"
+      className="absolute inset-0 flex flex-col items-center justify-center bg-white/90 backdrop-blur-md rounded-3xl z-10 gap-5"
     >
       <div className="relative w-20 h-20">
-        <div className="absolute inset-0 rounded-full border-4 border-white/20" />
-        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-white animate-spin" />
+        <div className="absolute inset-0 rounded-full border-4 border-soroco-linen" />
+        <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-soroco-sienna animate-spin" />
       </div>
       <div className="text-center">
-        <p className="text-white font-display text-2xl font-bold">Processing Payment</p>
-        <p className="text-white/60 font-body text-sm mt-1">{formatPrice(total)}</p>
+        <p className="text-soroco-charcoal font-display text-2xl font-bold">
+          Processing Payment
+        </p>
+        <p className="text-soroco-mocha font-body text-sm mt-1">
+          {formatPrice(total)}
+        </p>
       </div>
     </motion.div>
   );
@@ -333,23 +382,53 @@ export default function PaymentScreen() {
 
   const attemptCount = useRef(0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  const handlePay = () => {
+  const handlePay = async () => {
+    if (!orderState) return;
     attemptCount.current += 1;
     setIsProcessing(true);
+    setPaymentError(null);
 
-    // Simulate failure: 20% random chance, or after 3rd attempt
-    const shouldFail =
-      attemptCount.current >= 3 || Math.random() < 0.2;
+    try {
+      const items = orderState.items.map((it) => ({
+        menu_uuid: it.menuItemId,
+        quantity: it.quantity,
+        selected_size:
+          it.variantId === 'small' || it.variantId === 'large' || it.variantId === 'standard'
+            ? (it.variantId as 'small' | 'large' | 'standard')
+            : null,
+      }));
 
-    setTimeout(() => {
+      const result = await paymentService.createPayment({
+        order_ref: `rom-${Date.now()}-${attemptCount.current}`,
+        gateway_status: 'success',
+        payment_method: isPhonePe ? 'phonepay' : 'razorpay',
+        transaction_id: `txn-${Date.now()}`,
+        table_name: orderState.tableNumber,
+        customer_name: orderState.customerName,
+        phone_number: orderState.phone.replace(/\D/g, ''),
+        customer_email: orderState.email.trim() || null,
+        items,
+      });
+
       setIsProcessing(false);
-      if (shouldFail) {
-        navigate('/payment/failed', { state: orderState });
+      if (result.payment_status === 'success') {
+        navigate('/payment/success', {
+          state: {
+            ...orderState,
+            orderNumber: String(result.order_number ?? orderState.orderNumber),
+          },
+        });
+      } else if (result.payment_status === 'cancelled') {
+        navigate('/payment/cancelled', { state: orderState });
       } else {
-        navigate('/payment/success', { state: orderState });
+        navigate('/payment/failed', { state: orderState });
       }
-    }, 1500);
+    } catch (err) {
+      setIsProcessing(false);
+      setPaymentError(err instanceof Error ? err.message : 'Payment failed. Please try again.');
+    }
   };
 
   const handleCancel = () => {
@@ -361,17 +440,17 @@ export default function PaymentScreen() {
   return (
     <div
       className={[
-        'min-h-screen flex items-center justify-center p-4',
+        'min-h-screen flex items-center justify-center p-4 relative',
         isPhonePe
-          ? 'bg-gradient-to-br from-[#5F259F] via-[#7B35C1] to-[#3D1070]'
-          : 'bg-gradient-to-br from-[#072654] via-[#0D3680] to-[#0A1F4B]',
+          ? 'bg-gradient-to-br from-[#F3ECFB] via-white to-[#E9DFF7]'
+          : 'bg-gradient-to-br from-[#EAF2FE] via-white to-[#DFECFB]',
       ].join(' ')}
     >
       {/* Cancel button top-right */}
       <button
         type="button"
         onClick={handleCancel}
-        className="absolute top-5 right-5 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-all"
+        className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full bg-white/80 hover:bg-white border border-soroco-linen shadow-warm-sm flex items-center justify-center text-soroco-espresso transition-all"
         aria-label="Cancel and go back"
       >
         <X className="w-5 h-5" />
@@ -382,16 +461,17 @@ export default function PaymentScreen() {
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="relative w-full max-w-md rounded-3xl overflow-hidden"
-        style={{
-          background: isPhonePe
-            ? 'rgba(255,255,255,0.08)'
-            : 'rgba(255,255,255,0.08)',
-          border: '1px solid rgba(255,255,255,0.15)',
-          backdropFilter: 'blur(20px)',
-        }}
+        className="relative w-full max-w-md rounded-3xl bg-white shadow-warm-xl border border-soroco-linen overflow-hidden"
       >
         <div className="p-6 sm:p-8">
+          {paymentError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-red-700 font-body text-sm"
+            >
+              {paymentError}
+            </div>
+          )}
           {isPhonePe ? (
             <PhonePeUI
               total={total}
@@ -417,8 +497,10 @@ export default function PaymentScreen() {
 
       {/* Security badge */}
       <div className="absolute bottom-5 left-0 right-0 flex items-center justify-center gap-2">
-        <Shield className="w-4 h-4 text-white/40" />
-        <span className="text-white/40 text-xs font-body">Secured by 256-bit SSL encryption</span>
+        <Shield className="w-4 h-4 text-soroco-tan" />
+        <span className="text-soroco-tan text-xs font-body">
+          Secured by 256-bit SSL encryption (mock payment)
+        </span>
       </div>
     </div>
   );

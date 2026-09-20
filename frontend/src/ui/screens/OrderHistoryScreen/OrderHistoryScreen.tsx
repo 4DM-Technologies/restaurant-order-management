@@ -4,6 +4,7 @@ import AdminLayout from '@/ui/reusables/AdminLayout/AdminLayout.tsx';
 import StatusBadge from '@/ui/reusables/StatusBadge/StatusBadge.tsx';
 import LoadingSkeleton from '@/ui/reusables/LoadingSkeleton/LoadingSkeleton.tsx';
 import EmptyState from '@/ui/reusables/EmptyState/EmptyState.tsx';
+import DelayedLoader from '@/ui/reusables/BrandLoader/DelayedLoader.tsx';
 import { useOrderHistoryVM } from '@/ui/screens/OrderHistoryScreen/OrderHistoryScreen.vm.ts';
 import { KitchenStatusENUM } from '@/types/order/KitchenStatusENUM.ts';
 import { PaymentStatusENUM } from '@/types/order/PaymentStatusENUM.ts';
@@ -49,7 +50,7 @@ function OrderMobileCard({ order }: { order: OrderBO }) {
             })}
           </p>
         </div>
-        <span className="font-display font-bold text-soroco-charcoal text-sm">₹{order.total}</span>
+        <span className="font-body font-bold text-soroco-charcoal text-sm">₹{order.total}</span>
       </div>
       <div className="grid grid-cols-2 gap-1 text-xs mb-3">
         <span className="font-body text-soroco-mocha">Table: <span className="text-soroco-charcoal font-medium">{order.tableNumber}</span></span>
@@ -156,7 +157,7 @@ export default function OrderHistoryScreen() {
 
       {/* Content */}
       {vm.isLoading ? (
-        <LoadingSkeleton variant="row" count={6} />
+        <DelayedLoader variant="inline" fallback={<LoadingSkeleton variant="row" count={6} />} />
       ) : vm.filteredOrders.length === 0 ? (
         <EmptyState
           icon={History}

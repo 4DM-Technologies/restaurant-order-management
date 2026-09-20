@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '@/store/hooks.ts';
 import { PaymentMethodENUM } from '@/types/order/PaymentMethodENUM.ts';
 import type { CartItemBO } from '@/types/cart/CartItemBO.ts';
+import { TAX_RATE } from '@/constants/cafe.ts';
 
 /* ── Form fields ── */
 export interface CheckoutFormFields {
@@ -36,14 +37,14 @@ export interface CheckoutOrderState {
 
 /* ── Validators ── */
 function validatePhone(phone: string): string | undefined {
+  if (!phone.trim()) return undefined; // optional
   const stripped = phone.replace(/\D/g, '');
-  if (!phone.trim()) return 'Phone number is required.';
   if (stripped.length !== 10) return 'Enter a valid 10-digit phone number.';
   return undefined;
 }
 
 function validateEmail(email: string): string | undefined {
-  if (!email.trim()) return undefined; // optional
+  if (!email.trim()) return 'Email is required.';
   const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!re.test(email)) return 'Enter a valid email address.';
   return undefined;
@@ -75,7 +76,7 @@ export function useCheckoutVM(): CheckoutVM {
   const items = useAppSelector((s) => s.cart.items);
 
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
-  const tax = parseFloat((subtotal * 0.05).toFixed(2));
+  const tax = parseFloat((subtotal * TAX_RATE).toFixed(2));
   const total = parseFloat((subtotal + tax).toFixed(2));
 
   const [form, setForm] = useState<CheckoutFormFields>({

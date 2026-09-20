@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, useInView, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowRight,
   ChevronDown,
@@ -15,6 +15,7 @@ import {
 import Navbar from '@/ui/reusables/Navbar/Navbar.tsx';
 import Footer from '@/ui/reusables/Footer/Footer.tsx';
 import FoodCard from '@/ui/reusables/FoodCard/FoodCard.tsx';
+import Reveal from '@/ui/reusables/Reveal/Reveal.tsx';
 import { menuScreenService } from '@/services/screens/menuScreenService/MenuScreenService.ts';
 import {
   MENU_CATEGORIES,
@@ -22,30 +23,6 @@ import {
   CATEGORY_TILE_IMAGES,
 } from '@/services/screens/menuScreenService/menuData.ts';
 import type { MenuItemBO } from '@/types/menu/MenuItemBO.ts';
-
-// ─── Scroll Reveal wrapper ──────────────────────────────────────────────────
-interface RevealProps {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-  fromY?: number;
-  fromX?: number;
-}
-function Reveal({ children, delay = 0, className = '', fromY = 30, fromX = 0 }: RevealProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: fromY, x: fromX }}
-      animate={inView ? { opacity: 1, y: 0, x: 0 } : {}}
-      transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-}
 
 // ─── HERO ───────────────────────────────────────────────────────────────────
 function HeroSection() {
@@ -84,7 +61,7 @@ function HeroSection() {
       </motion.div>
 
       {/* Navbar sits on top of hero — transparent */}
-      <Navbar />
+      <Navbar variant="dark" />
 
       {/* Hero content */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-24 pb-20">
@@ -244,7 +221,7 @@ function StorySection() {
           </div>
 
           {/* Image */}
-          <Reveal delay={0.1} fromX={40} fromY={0}>
+          <Reveal delay={0.1} x={40} y={0}>
             <div className="relative">
               <div className="aspect-[4/5] rounded-3xl overflow-hidden shadow-warm-xl bg-soroco-linen">
                 <img
@@ -261,7 +238,7 @@ function StorySection() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
+                viewport={{ once: false }}
                 transition={{ delay: 0.5, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
                 className="absolute -bottom-5 -left-5 sm:-bottom-6 sm:-left-6 bg-soroco-espresso text-soroco-cream px-5 py-4 rounded-2xl shadow-warm-lg"
               >
@@ -271,7 +248,7 @@ function StorySection() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
                 whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
+                viewport={{ once: false }}
                 transition={{ delay: 0.65, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
                 className="absolute -top-4 -right-4 sm:-top-5 sm:-right-5 bg-soroco-amber text-white px-5 py-4 rounded-2xl shadow-warm-lg"
               >
@@ -342,7 +319,7 @@ function FeaturedSection() {
                 key={item.id}
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
+                viewport={{ once: false }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: i * 0.07 }}
               >
                 <FoodCard
@@ -393,7 +370,7 @@ function CategoriesSection() {
               onClick={() => navigate(`/menu?category=${cat.id}`)}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: false }}
               transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: i * 0.08 }}
               whileHover={{ y: -4, scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
@@ -436,7 +413,7 @@ function AtmosphereSection() {
       <div className="section-container">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Image mosaic */}
-          <Reveal fromX={-40} fromY={0}>
+          <Reveal x={-40} y={0}>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {/* Tall left image */}
               <div className="row-span-2 rounded-2xl overflow-hidden aspect-[2/3] bg-soroco-mocha shadow-warm-lg">

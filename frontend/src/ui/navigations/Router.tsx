@@ -9,6 +9,7 @@ import {
 import { useAppSelector } from '@/store/hooks.ts';
 import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 import { ShieldOff } from 'lucide-react';
+import DelayedLoader from '@/ui/reusables/BrandLoader/DelayedLoader.tsx';
 
 /* ─────────────────────────── Lazy Screens ─────────────────────────── */
 const HomeScreen         = lazy(() => import('@/ui/screens/HomeScreen/HomeScreen'));
@@ -29,14 +30,7 @@ const NotFoundScreen     = lazy(() => import('@/ui/screens/NotFoundScreen/NotFou
 
 /* ─────────────────────────── Loading Spinner ──────────────────────── */
 function LoadingSpinner() {
-  return (
-    <div className="min-h-screen bg-soroco-cream flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-12 h-12 rounded-full border-4 border-soroco-linen border-t-soroco-amber animate-spin" />
-        <p className="font-body text-soroco-mocha text-sm">Loading…</p>
-      </div>
-    </div>
-  );
+  return <DelayedLoader variant="full" />;
 }
 
 /* ─────────────────────────── Unauthorized ──────────────────────────── */

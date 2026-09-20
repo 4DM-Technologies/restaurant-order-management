@@ -1,15 +1,18 @@
 import type { MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '@/store/hooks.ts';
-import { removeItem, updateQuantity } from '@/store/slices/cartSlice.ts';
+import { clearCart, removeItem, updateQuantity } from '@/store/slices/cartSlice.ts';
 import type { CartItemBO } from '@/types/cart/CartItemBO.ts';
+import { TAX_RATE } from '@/constants/cafe.ts';
 
 export interface CartVM {
   items: CartItemBO[];
+  itemCount: number;
   subtotal: number;
   tax: number;
   total: number;
   isEmpty: boolean;
+  handleClear: () => void;
   handleIncrement: (item: CartItemBO) => (e: MouseEvent<HTMLButtonElement>) => void;
   handleDecrement: (item: CartItemBO) => (e: MouseEvent<HTMLButtonElement>) => void;
   handleRemove: (cartItemId: string) => void;
@@ -22,8 +25,9 @@ export function useCartVM(): CartVM {
   const navigate = useNavigate();
   const items = useAppSelector((s) => s.cart.items);
 
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const subtotal = items.reduce((sum, item) => sum + item.totalPrice, 0);
-  const tax = parseFloat((subtotal * 0.05).toFixed(2));
+  const tax = parseFloat((subtotal * TAX_RATE).toFixed(2));
   const total = parseFloat((subtotal + tax).toFixed(2));
 
   const handleIncrement =
@@ -47,6 +51,10 @@ export function useCartVM(): CartVM {
     dispatch(removeItem(cartItemId));
   };
 
+  const handleClear = () => {
+    dispatch(clearCart());
+  };
+
   const handleCheckout = () => {
     navigate('/checkout');
   };
@@ -57,10 +65,12 @@ export function useCartVM(): CartVM {
 
   return {
     items,
+    itemCount,
     subtotal,
     tax,
     total,
     isEmpty: items.length === 0,
+    handleClear,
     handleIncrement,
     handleDecrement,
     handleRemove,

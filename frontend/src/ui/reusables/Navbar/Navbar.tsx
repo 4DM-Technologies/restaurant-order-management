@@ -10,7 +10,11 @@ const NAV_LINKS = [
   { label: 'Orders',  href: '/orders' },
 ];
 
-export default function Navbar() {
+interface NavbarProps {
+  variant?: 'light' | 'dark';
+}
+
+export default function Navbar({ variant = 'light' }: NavbarProps) {
   const location   = useLocation();
   const navigate   = useNavigate();
   const dispatch   = useAppDispatch();
@@ -24,6 +28,10 @@ export default function Navbar() {
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+
+  const overDark = variant === 'dark' && !scrolled;
+  const strongText = overDark ? 'text-soroco-cream' : 'text-soroco-espresso';
+  const mutedText = overDark ? 'text-soroco-cream/75' : 'text-soroco-mocha';
 
   /* ── Scroll listener ── */
   useEffect(() => {
@@ -70,10 +78,11 @@ export default function Navbar() {
       {/* ── Main nav bar ── */}
       <header
         className={[
-          'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
+          'fixed top-0 left-0 right-0 z-50 backdrop-blur-md',
+          'transition-[background-color,box-shadow] duration-300',
           scrolled
-            ? 'bg-white/95 backdrop-blur-md shadow-warm'
-            : 'bg-transparent',
+            ? 'bg-white/95 shadow-warm'
+            : 'bg-white/0',
         ].join(' ')}
         style={{ height: 'var(--nav-height)' }}
       >
@@ -82,7 +91,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link
             to="/"
-            className="font-display font-bold text-soroco-espresso text-xl sm:text-2xl shrink-0 tracking-tight hover:opacity-80 transition-opacity"
+            className={`font-display font-bold text-soroco-espresso text-xl sm:text-2xl tracking-tight shrink-0 hover:opacity-80 transition-opacity ${strongText}`}
           >
             Soroco House
           </Link>
@@ -96,7 +105,14 @@ export default function Navbar() {
                 className={[
                   'nav-link pb-0.5',
                   isActive(link.href) ? 'nav-link-active' : '',
-                ].join(' ')}
+                  overDark
+                    ? isActive(link.href)
+                      ? 'nav-link-active !text-soroco-cream hover:!text-soroco-cream'
+                      : 'text-soroco-cream/80 hover:!text-soroco-cream'
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               >
                 {link.label}
               </Link>
@@ -112,7 +128,7 @@ export default function Navbar() {
               className="btn-icon relative"
               aria-label={`Cart (${cartCount} items)`}
             >
-              <ShoppingBag className="w-5 h-5 text-soroco-espresso" />
+              <ShoppingBag className={`w-5 h-5 ${strongText}`} />
               {cartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-soroco-amber text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 animate-cart-bounce">
                   {cartCount > 99 ? '99+' : cartCount}
@@ -131,11 +147,11 @@ export default function Navbar() {
                   <div className="w-7 h-7 rounded-full bg-soroco-amber/20 flex items-center justify-center">
                     <User className="w-4 h-4 text-soroco-amber" />
                   </div>
-                  <span className="text-soroco-espresso font-medium max-w-[120px] truncate">
+                  <span className={`font-medium ${strongText} max-w-[120px] truncate`}>
                     {user.name}
                   </span>
                   <ChevronDown
-                    className={`w-4 h-4 text-soroco-mocha transition-transform duration-200 ${
+                    className={`w-4 h-4 ${mutedText} transition-transform duration-200 ${
                       userMenuOpen ? 'rotate-180' : ''
                     }`}
                   />
@@ -169,6 +185,13 @@ export default function Navbar() {
                   )}
                 </AnimatePresence>
               </div>
+            ) : overDark ? (
+              <Link
+                to="/login"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-white/35 px-5 py-2 text-sm font-semibold text-soroco-cream bg-white/10 hover:bg-white/20 hover:border-white/50 transition-all duration-200"
+              >
+                Sign in
+              </Link>
             ) : (
               <Link to="/login" className="btn-secondary text-sm px-5 py-2">
                 Sign in
@@ -183,7 +206,7 @@ export default function Navbar() {
               className="btn-icon relative"
               aria-label={`Cart (${cartCount} items)`}
             >
-              <ShoppingBag className="w-5 h-5 text-soroco-espresso" />
+              <ShoppingBag className={`w-5 h-5 ${strongText}`} />
               {cartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-soroco-amber text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
                   {cartCount > 99 ? '99+' : cartCount}
@@ -195,7 +218,7 @@ export default function Navbar() {
               className="btn-icon"
               aria-label="Open menu"
             >
-              <MenuIcon className="w-5 h-5 text-soroco-espresso" />
+              <MenuIcon className={`w-5 h-5 ${strongText}`} />
             </button>
           </div>
         </div>

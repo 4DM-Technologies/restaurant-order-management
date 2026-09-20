@@ -20,35 +20,13 @@ import FoodCard from '@/ui/reusables/FoodCard/FoodCard.tsx';
 import Modal from '@/ui/reusables/Modal/Modal.tsx';
 import BottomSheet from '@/ui/reusables/BottomSheet/BottomSheet.tsx';
 import ConfirmDialog from '@/ui/reusables/ConfirmDialog/ConfirmDialog.tsx';
+import Reveal from '@/ui/reusables/Reveal/Reveal.tsx';
+import LoadingSkeleton from '@/ui/reusables/LoadingSkeleton/LoadingSkeleton.tsx';
+import DelayedLoader from '@/ui/reusables/BrandLoader/DelayedLoader.tsx';
 import MenuEditorModal from '@/ui/screens/MenuScreen/MenuEditorModal.tsx';
 import { MENU_CATEGORIES } from '@/services/screens/menuScreenService/menuData.ts';
 import { useMenuScreenVM } from '@/ui/screens/MenuScreen/MenuScreen.vm.ts';
 import type { MenuItemBO, MenuItemVariantBO, MenuItemAddonBO } from '@/types/menu/MenuItemBO.ts';
-
-// ─── Loading skeletons ─────────────────────────────────────────────────────────
-function SkeletonSection() {
-  return (
-    <div className="mb-14">
-      <div className="skeleton h-7 w-48 rounded-xl mb-6" />
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="card">
-            <div className="skeleton aspect-[4/3]" />
-            <div className="p-4 space-y-2">
-              <div className="skeleton h-4 w-3/4 rounded" />
-              <div className="skeleton h-3 w-full rounded" />
-              <div className="skeleton h-3 w-2/3 rounded" />
-              <div className="flex justify-between items-center pt-1">
-                <div className="skeleton h-5 w-16 rounded" />
-                <div className="skeleton h-8 w-20 rounded-full" />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ─── Food detail content (shared between Modal + BottomSheet) ─────────────────
 interface FoodDetailContentProps {
@@ -150,7 +128,7 @@ function FoodDetailContent({
             )}
           </div>
         </div>
-        <span className="font-display font-bold text-soroco-espresso text-xl shrink-0">
+        <span className="font-body font-bold text-soroco-espresso text-xl shrink-0">
           ₹{(selectedVariant?.price ?? item.price).toFixed(2)}
         </span>
       </div>
@@ -344,7 +322,7 @@ interface CategoryNavProps {
   sections: Array<{ category: { id: string; label: string; emoji: string }; items: unknown[] }>;
   activeCategory: string;
   onCategoryChange: (id: string) => void;
-  navRef: React.RefObject<HTMLDivElement | null>;
+  navRef: React.Ref<HTMLDivElement>;
 }
 
 function CategoryNav({ sections, activeCategory, onCategoryChange, navRef }: CategoryNavProps) {
@@ -567,10 +545,10 @@ export default function MenuScreen() {
         {/* Menu sections */}
         <main className="section-container py-8 pb-32">
           {vm.isLoading ? (
-            <>
-              <SkeletonSection />
-              <SkeletonSection />
-            </>
+            <DelayedLoader
+              variant="inline"
+              fallback={<LoadingSkeleton variant="card" count={8} />}
+            />
           ) : (
             <>
               {vm.sections.map((section, sectionIdx) => (
@@ -581,7 +559,7 @@ export default function MenuScreen() {
                   className="mb-14 scroll-mt-36"
                 >
                   {/* Section heading */}
-                  <div className="flex items-center gap-3 mb-6">
+                  <Reveal y={24} className="flex items-center gap-3 mb-6">
                     <span className="text-3xl" aria-hidden="true">
                       {section.category.emoji}
                     </span>
@@ -594,18 +572,18 @@ export default function MenuScreen() {
                       </p>
                     </div>
                     <div className="flex-1 h-px bg-soroco-linen ml-3" />
-                  </div>
+                  </Reveal>
 
                   {/* Food card grid */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5">
                     {section.items.map((item, itemIdx) => (
                       <motion.div
                         key={item.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, margin: '-5%' }}
+                        initial={{ opacity: 0, y: 28, scale: 0.96 }}
+                        whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                        viewport={{ once: false, margin: '-10% 0px' }}
                         transition={{
-                          duration: 0.45,
+                          duration: 0.5,
                           delay: Math.min(itemIdx * 0.06, 0.3),
                           ease: [0.22, 1, 0.36, 1],
                         }}

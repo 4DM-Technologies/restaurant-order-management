@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '@/services/platform/authService/AuthService.ts';
 import { setUser } from '@/store/slices/authSlice.ts';
 import { useAppDispatch } from '@/store/hooks.ts';
+import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 
 function validateEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -22,54 +23,95 @@ function getPasswordStrength(password: string): PasswordStrength {
   return 'strong';
 }
 
+interface AccountStatus {
+  exists: boolean;
+  hasPassword: boolean;
+}
+
 export function useSignupVM() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
 
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<AccountStatus | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const passwordStrength: PasswordStrength = getPasswordStrength(password);
+  const canSetPassword = status !== null && status.exists && !status.hasPassword;
 
-  function validate(): string | null {
-    if (!name.trim()) return 'Full name is required.';
-    if (!email.trim()) return 'Email is required.';
-    if (!validateEmail(email)) return 'Please enter a valid email address.';
+  function validateEmailInput(emailValue: string): string | null {
+    if (!emailValue.trim()) return 'Email is required.';
+    if (!validateEmail(emailValue)) return 'Please enter a valid email address.';
+    return null;
+  }
+
+  async function handleCheckEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const validationError = validateEmailInput(email);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setIsChecking(true);
+    try {
+      const result = await authService.checkEmail(email.trim());
+      setStatus({ exists: result.exists, hasPassword: result.has_password });
+      setPassword('');
+      setConfirmPassword('');
+      if (!result.exists) {
+        setError('No account found for this email — ask the admin to add you first.');
+      } else if (result.has_password) {
+        setError('This account is already active. Please sign in instead.');
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not check this email. Please try again.');
+    } finally {
+      setIsChecking(false);
+    }
+  }
+
+  function validateActivation(): string | null {
+    if (!validateEmailInput(email)) return validateEmailInput(email);
     if (!password) return 'Password is required.';
     if (password.length < 8) return 'Password must be at least 8 characters.';
     if (password !== confirmPassword) return 'Passwords do not match.';
     return null;
   }
 
-  async function handleSignup(e: React.FormEvent) {
+  async function handleActivate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
-    const validationError = validate();
+    const validationError = validateActivation();
     if (validationError) {
       setError(validationError);
       return;
     }
 
-    setIsLoading(true);
+    setIsActivating(true);
     try {
-      const user = await authService.signup(name.trim(), email.trim(), password);
+      const user = await authService.signup(email.trim(), password);
       dispatch(setUser(user));
-      navigate('/orders');
+      if (user.role === UserRoleENUM.ADMIN) {
+        navigate('/admin');
+      } else {
+        navigate('/orders');
+      }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Signup failed. Please try again.');
+      setError(err instanceof Error ? err.message : 'Activation failed. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsActivating(false);
     }
   }
 
   return {
-    name,
-    setName,
     email,
     setEmail,
     password,
@@ -77,8 +119,11 @@ export function useSignupVM() {
     confirmPassword,
     setConfirmPassword,
     passwordStrength,
-    isLoading,
+    status,
+    canSetPassword,
+    isLoading: isChecking || isActivating,
     error,
-    handleSignup,
+    handleCheckEmail,
+    handleActivate,
   };
 }

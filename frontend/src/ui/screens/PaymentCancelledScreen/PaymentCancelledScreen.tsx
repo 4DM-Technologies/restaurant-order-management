@@ -87,7 +87,7 @@ export default function PaymentCancelledScreen() {
               <p className="text-xs text-soroco-tan font-body uppercase tracking-wider mb-1">
                 Amount (not charged)
               </p>
-              <p className="font-display font-bold text-soroco-espresso text-2xl">
+              <p className="font-body font-bold text-soroco-espresso text-2xl">
                 {formatPrice(order.total)}
               </p>
             </motion.div>

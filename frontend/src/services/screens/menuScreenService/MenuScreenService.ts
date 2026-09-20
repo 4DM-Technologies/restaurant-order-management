@@ -1,14 +1,7 @@
 import type { MenuItemBO } from '@/types/menu/MenuItemBO.ts';
-import {
-  menuData,
-  MENU_CATEGORIES,
-  getFeaturedItems,
-  getItemsByCategory,
-  getItemById,
-} from '@/services/screens/menuScreenService/menuData.ts';
-
-// ─── Mutable working copy (mock persistence for the session) ──────────────────
-let _menuItems: MenuItemBO[] = [...menuData];
+import { MENU_CATEGORIES } from '@/services/screens/menuScreenService/menuData.ts';
+import { getImageUrl } from '@/services/uploadImageService.ts';
+import { apiClient } from '@/services/apiClient.ts';
 
 export interface MenuItemInput {
   name: string;
@@ -19,94 +12,99 @@ export interface MenuItemInput {
   isAvailable?: boolean;
 }
 
-// Branded placeholder used when a new item is added without a photo
-const PLACEHOLDER_IMAGE = [
-  'data:image/svg+xml;utf8,',
-  encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">' +
-      '<rect width="640" height="480" fill="#F2EDE3"/>' +
-      '<g fill="none" stroke="#C8956C" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="M255 175 h130 a18 18 0 0 1 0 36 h-130 z"/>' +
-      '<path d="M265 300 a55 55 0 0 0 110 0"/>' +
-      '<path d="M240 255 h150"/>' +
-      '</g>' +
-      '<circle cx="420" cy="195" r="18" fill="#C8956C"/>' +
-      '<rect x="255" y="230" width="120" height="10" rx="5" fill="#C8956C"/>' +
-      '<text x="320" y="380" font-family="Georgia, serif" font-size="34" fill="#6B3F2A" text-anchor="middle" letter-spacing="2">SOROCO HOUSE</text>' +
-      '</svg>',
-  ),
-].join('');
+interface ApiMenuItem {
+  menu_uuid: string;
+  menu_id: number;
+  category: string;
+  item_name: string;
+  item_description: string;
+  standard_price: number;
+  small_price: number | null;
+  large_price: number | null;
+  image_url: string | null;
+  is_available: boolean;
+  created_at: string;
+}
+
+const CATEGORY_LABELS = Object.fromEntries(MENU_CATEGORIES.map((c) => [c.id, c.label]));
+const CATEGORY_IDS = Object.fromEntries(MENU_CATEGORIES.map((c) => [c.label, c.id]));
+
+function toBO(item: ApiMenuItem): MenuItemBO {
+  return {
+    id: item.menu_uuid,
+    name: item.item_name,
+    description: item.item_description?.trim() || '',
+    category: CATEGORY_IDS[item.category] ?? item.category,
+    image: getImageUrl(item.image_url),
+    price: item.standard_price ?? item.small_price ?? item.large_price ?? 0,
+    isVeg: true,
+    isBestseller: false,
+    isSpecial: false,
+    isAvailable: item.is_available,
+  };
+}
+
+function toInput(data: MenuItemInput): Record<string, unknown> {
+  return {
+    category: CATEGORY_LABELS[data.category] ?? data.category,
+    name: data.name.trim(),
+    description: data.description.trim(),
+    standard_price: Number(data.price) || 0,
+    image_url: data.image?.trim() || null,
+    is_available: data.isAvailable ?? true,
+  };
+}
+
+async function fetchAll(): Promise<ApiMenuItem[]> {
+  const groups = await apiClient.get<Array<{ category: string; items: ApiMenuItem[] }>>('/menu');
+  return groups.flatMap((g) => g.items ?? []);
+}
 
 export const menuScreenService = {
   getMenu: async (): Promise<MenuItemBO[]> => {
-    await new Promise((r) => setTimeout(r, 400));
-    return [..._menuItems];
+    const items = await fetchAll();
+    return items.map(toBO);
   },
 
   getCategories: async () => {
-    await new Promise((r) => setTimeout(r, 200));
     return MENU_CATEGORIES;
   },
 
   getFeaturedItems: async (): Promise<MenuItemBO[]> => {
-    await new Promise((r) => setTimeout(r, 300));
-    return getFeaturedItems();
+    const items = await fetchAll();
+    return items.slice(0, 6).map(toBO);
   },
 
   getItemsByCategory: async (categoryId: string): Promise<MenuItemBO[]> => {
-    await new Promise((r) => setTimeout(r, 200));
-    return getItemsByCategory(categoryId);
+    const label = CATEGORY_LABELS[categoryId] ?? categoryId;
+    const items = await fetchAll();
+    return items.filter((i) => i.category === label).map(toBO);
   },
 
   getItemById: async (id: string): Promise<MenuItemBO | null> => {
-    await new Promise((r) => setTimeout(r, 150));
-    return getItemById(id) ?? null;
+    const items = await fetchAll();
+    const found = items.find((i) => i.menu_uuid === id);
+    return found ? toBO(found) : null;
   },
 
   addMenuItem: async (data: MenuItemInput): Promise<MenuItemBO> => {
-    await new Promise((r) => setTimeout(r, 400));
-    const newItem: MenuItemBO = {
-      id: `item-${Date.now()}`,
-      name: data.name.trim(),
-      description: data.description.trim(),
-      category: data.category,
-      image: data.image?.trim() || PLACEHOLDER_IMAGE,
-      price: Number(data.price) || 0,
-      isVeg: true,
-      isBestseller: false,
-      isSpecial: false,
-      isAvailable: data.isAvailable ?? true,
-      preparationTime: undefined,
-      tags: undefined,
-    };
-    _menuItems = [..._menuItems, newItem];
-    return newItem;
+    const item = await apiClient.post<ApiMenuItem>('/menu', toInput(data));
+    return toBO(item);
   },
 
-  updateMenuItem: async (
-    id: string,
-    data: Partial<MenuItemInput>,
-  ): Promise<MenuItemBO> => {
-    await new Promise((r) => setTimeout(r, 400));
-    const patch: Partial<MenuItemBO> = {
-      name: data.name?.trim() || undefined,
-      description: data.description?.trim() || undefined,
-      category: data.category,
-      price: data.price !== undefined ? Number(data.price) : undefined,
-      image:
-        data.image !== undefined
-          ? data.image.trim() || PLACEHOLDER_IMAGE
-          : undefined,
-      isAvailable: data.isAvailable,
-    };
-    _menuItems = _menuItems.map((m) => (m.id === id ? { ...m, ...patch } : m));
-    const updated = _menuItems.find((m) => m.id === id);
-    if (!updated) throw new Error('Menu item not found');
-    return updated;
+  updateMenuItem: async (id: string, data: Partial<MenuItemInput>): Promise<MenuItemBO> => {
+    const payload: Record<string, unknown> = {};
+    if (data.name !== undefined) payload.name = data.name.trim();
+    if (data.category !== undefined) payload.category = CATEGORY_LABELS[data.category] ?? data.category;
+    if (data.description !== undefined) payload.description = data.description.trim();
+    if (data.price !== undefined) payload.standard_price = Number(data.price);
+    if (data.image !== undefined) payload.image_url = data.image.trim() || null;
+    if (data.isAvailable !== undefined) payload.is_available = data.isAvailable;
+    const item = await apiClient.patch<ApiMenuItem>(`/menu/${id}`, payload);
+    return toBO(item);
   },
 
   deleteMenuItem: async (id: string): Promise<void> => {
-    await new Promise((r) => setTimeout(r, 400));
-    _menuItems = _menuItems.filter((m) => m.id !== id);
+    await apiClient.delete(`/menu/${id}`);
   },
 };

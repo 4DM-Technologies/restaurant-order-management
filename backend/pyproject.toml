@@ -1,0 +1,10 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+# B008 is idiomatic FastAPI (`Depends(...)` / `Query(...)` in defaults).
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501", "S101"]

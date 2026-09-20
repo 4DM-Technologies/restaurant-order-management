@@ -1,44 +1,57 @@
 import type { UserBO } from '@/types/user/UserBO.ts';
 import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 import { UserStatusENUM } from '@/types/user/UserStatusENUM.ts';
-import { employeesData } from '@/services/screens/employeeScreenService/employeesData.ts';
+import { apiClient } from '@/services/apiClient.ts';
 
-let _employees: UserBO[] = [...employeesData];
+interface ApiEmployee {
+  account_uuid: string;
+  account_id: number;
+  account_name: string;
+  account_email: string;
+  account_role: string;
+  created_at: string;
+  has_password: boolean;
+  can_delete: boolean;
+}
+
+function toUser(e: ApiEmployee): UserBO {
+  const role = e.account_role.toUpperCase();
+  return {
+    id: e.account_uuid,
+    name: e.account_name,
+    email: e.account_email,
+    role: (role === UserRoleENUM.ADMIN || role === UserRoleENUM.EMPLOYEE ? role : UserRoleENUM.EMPLOYEE) as UserRoleENUM,
+    status: e.has_password ? UserStatusENUM.ACTIVE : UserStatusENUM.INACTIVE,
+    createdAt: e.created_at,
+  };
+}
 
 export const employeeScreenService = {
   getEmployees: async (): Promise<UserBO[]> => {
-    await new Promise((r) => setTimeout(r, 400));
-    return [..._employees];
+    const data = await apiClient.get<ApiEmployee[]>('/admin/employees');
+    return data.map(toUser);
   },
 
   addEmployee: async (data: { name: string; email: string; role: UserRoleENUM }): Promise<UserBO> => {
-    await new Promise((r) => setTimeout(r, 500));
-    const newEmp: UserBO = {
-      id: `emp-${Date.now()}`,
+    const created = await apiClient.post<ApiEmployee>('/admin/employees', {
       name: data.name,
       email: data.email,
-      role: data.role,
-      status: UserStatusENUM.ACTIVE,
-      createdAt: new Date().toISOString(),
-      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${data.name.slice(0, 2)}&backgroundColor=c8956c&textColor=ffffff`,
-    };
-    _employees = [..._employees, newEmp];
-    return newEmp;
+    });
+    return toUser(created);
   },
 
   editEmployee: async (
     id: string,
     data: Partial<Pick<UserBO, 'name' | 'email' | 'role' | 'status'>>,
   ): Promise<UserBO> => {
-    await new Promise((r) => setTimeout(r, 400));
-    _employees = _employees.map((e) => (e.id === id ? { ...e, ...data } : e));
-    const updated = _employees.find((e) => e.id === id);
-    if (!updated) throw new Error('Employee not found');
-    return updated;
+    const payload: Record<string, string> = {};
+    if (data.name !== undefined) payload.name = data.name;
+    if (data.email !== undefined) payload.email = data.email;
+    const updated = await apiClient.patch<ApiEmployee>(`/admin/employees/${id}`, payload);
+    return toUser(updated);
   },
 
   deleteEmployee: async (id: string): Promise<void> => {
-    await new Promise((r) => setTimeout(r, 400));
-    _employees = _employees.filter((e) => e.id !== id);
+    await apiClient.delete(`/admin/employees/${id}`);
   },
 };

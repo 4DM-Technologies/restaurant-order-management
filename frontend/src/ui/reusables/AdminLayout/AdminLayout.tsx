@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -8,12 +8,12 @@ import {
   History,
   Utensils,
   LogOut,
-  Coffee,
   Menu,
   X,
 } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks.ts';
 import { clearUser } from '@/store/slices/authSlice.ts';
+import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 
 interface NavItem {
   label: string;
@@ -34,6 +34,11 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
   const navigate = useNavigate();
   const user = useAppSelector((s) => s.auth.user);
 
+  const isEmployee = user?.role === UserRoleENUM.EMPLOYEE;
+  const visibleNavItems = isEmployee
+    ? NAV_ITEMS.filter((item) => item.label === 'Menu')
+    : NAV_ITEMS;
+
   function handleLogout() {
     dispatch(clearUser());
     navigate('/login');
@@ -43,10 +48,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center justify-between p-6 border-b border-white/10">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-          <div className="w-9 h-9 bg-soroco-amber rounded-full flex items-center justify-center shrink-0">
-            <Coffee className="w-4 h-4 text-white" />
-          </div>
+        <Link to="/" className="hover:opacity-80 transition-opacity">
           <span className="font-display text-lg font-bold tracking-tight text-soroco-cream">
             Soroco House
           </span>
@@ -81,19 +83,37 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
       )}
 
       {/* Nav items */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {NAV_ITEMS.map(({ label, icon: Icon, to }) => (
+      <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+        {visibleNavItems.map(({ label, icon: Icon, to }) => (
           <NavLink
             key={to}
             to={to}
             end={to === '/admin'}
             onClick={onClose}
             className={({ isActive }) =>
-              `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`
+              `relative flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-body font-medium text-sm transition-colors duration-200 ${
+                isActive
+                  ? 'text-soroco-cream'
+                  : 'text-soroco-cream/60 hover:text-soroco-cream hover:bg-white/5'
+              }`
             }
           >
-            <Icon className="w-4 h-4 shrink-0" />
-            {label}
+            {({ isActive }) => (
+              <>
+                {isActive && (
+                  <motion.div
+                    layoutId="admin-nav-active"
+                    className="absolute inset-0 rounded-xl bg-gradient-to-r from-soroco-amber/90 to-soroco-sienna shadow-warm-md"
+                    transition={{ type: 'spring', stiffness: 400, damping: 34 }}
+                  />
+                )}
+                <Icon className="w-4 h-4 shrink-0 relative z-10" />
+                <span className="relative z-10">{label}</span>
+                {isActive && (
+                  <span className="relative z-10 ml-auto w-1.5 h-1.5 rounded-full bg-white/90" />
+                )}
+              </>
+            )}
           </NavLink>
         ))}
       </nav>
@@ -119,11 +139,15 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children, title }: AdminLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-soroco-cream flex">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-60 shrink-0 bg-soroco-espresso fixed top-0 left-0 h-screen z-30 overflow-hidden">
+      <aside className="hidden lg:flex flex-col w-60 shrink-0 bg-gradient-to-b from-soroco-espresso via-soroco-charcoal to-soroco-espresso fixed top-0 left-0 h-screen z-30 overflow-hidden shadow-warm-xl">
+        {/* Ambience glow */}
+        <div className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 bg-soroco-amber/15 rounded-full blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 -right-16 w-64 h-64 bg-soroco-sienna/20 rounded-full blur-3xl" />
         <SidebarContent />
       </aside>
 
@@ -144,8 +168,9 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              className="fixed top-0 left-0 h-screen w-72 bg-soroco-espresso z-50 lg:hidden overflow-hidden"
+              className="fixed top-0 left-0 h-screen w-72 bg-gradient-to-b from-soroco-espresso via-soroco-charcoal to-soroco-espresso z-50 lg:hidden overflow-hidden"
             >
+              <div className="pointer-events-none absolute -top-24 -left-16 w-72 h-72 bg-soroco-amber/15 rounded-full blur-3xl" />
               <SidebarContent onClose={() => setIsMobileMenuOpen(false)} />
             </motion.aside>
           </>
@@ -164,10 +189,7 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
             <Menu className="w-5 h-5 text-soroco-espresso" />
           </button>
           <div className="flex items-center gap-2">
-            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <div className="w-7 h-7 bg-soroco-amber rounded-full flex items-center justify-center">
-                <Coffee className="w-3.5 h-3.5 text-white" />
-              </div>
+            <Link to="/" className="hover:opacity-80 transition-opacity">
               <span className="font-display font-bold tracking-tight text-soroco-espresso text-base">
                 {title ?? 'Soroco House'}
               </span>
@@ -177,7 +199,17 @@ export default function AdminLayout({ children, title }: AdminLayoutProps) {
 
         {/* Page content */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          {children}
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>

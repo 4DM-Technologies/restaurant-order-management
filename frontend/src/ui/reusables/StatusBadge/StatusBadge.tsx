@@ -35,9 +35,7 @@ const STATUS_MAP: Record<AnyStatus, StatusConfig> = {
   [PaymentStatusENUM.REFUNDED]:  { label: 'Refunded',  icon: CheckCircle,   className: 'status-prepared' },
 
   /* Order */
-  [OrderStatusENUM.PENDING]:   { label: 'Pending',   icon: Clock,       className: 'status-pending' },
   [OrderStatusENUM.CONFIRMED]: { label: 'Confirmed', icon: CheckCircle, className: 'status-prepared' },
-  [OrderStatusENUM.CANCELLED]: { label: 'Cancelled', icon: CircleAlert, className: 'status-failed' },
   [OrderStatusENUM.COMPLETED]: { label: 'Completed', icon: PackageCheck,className: 'status-delivered' },
 };
 

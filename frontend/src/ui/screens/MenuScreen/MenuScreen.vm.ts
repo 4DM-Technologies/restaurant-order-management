@@ -8,6 +8,8 @@ import { UserRoleENUM } from '@/types/user/UserRoleENUM.ts';
 import type { MenuItemBO, MenuItemVariantBO, MenuItemAddonBO } from '@/types/menu/MenuItemBO.ts';
 import type { CartItemBO } from '@/types/cart/CartItemBO.ts';
 import type { MenuEditorData } from '@/ui/screens/MenuScreen/MenuEditorModal.tsx';
+import { uploadImage } from '@/services/uploadImageService.ts';
+import { subscribeMenu } from '@/services/websocket/liveClient.ts';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 export interface CategoryMeta {
@@ -104,6 +106,14 @@ export function useMenuScreenVM() {
     loadMenu();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live refresh for menu changes pushed over WebSocket
+  useEffect(() => {
+    const unsubscribe = subscribeMenu(() => {
+      void refreshMenu();
+    });
+    return unsubscribe;
+  }, [refreshMenu]);
 
   // ── Scroll to section from query param on mount (after sections load) ──────
   useEffect(() => {
@@ -292,10 +302,22 @@ export function useMenuScreenVM() {
       setIsSaving(true);
       setEditorError(null);
       try {
+        let imageUrl = data.image.trim();
+        if (data.imageFile) {
+          imageUrl = await uploadImage(data.imageFile, data.name);
+        }
+        const payload = {
+          name: data.name,
+          category: data.category,
+          price: data.price,
+          description: data.description,
+          image: imageUrl,
+          isAvailable: data.isAvailable,
+        };
         if (editorMode === 'add') {
-          await menuScreenService.addMenuItem(data);
+          await menuScreenService.addMenuItem(payload);
         } else if (editorItem) {
-          await menuScreenService.updateMenuItem(editorItem.id, data);
+          await menuScreenService.updateMenuItem(editorItem.id, payload);
         }
         await refreshMenu();
         setIsEditorOpen(false);

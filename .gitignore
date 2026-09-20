@@ -56,5 +56,9 @@ coverage/
 npm-debug.log*
 
 # Docker local dev data (sqlite via bind mount)
-data/
+data/*
 !data/.gitkeep
+
+# Backend image uploads (local storage driver) — never commit runtime files
+uploads/*
+!uploads/.gitkeep

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { orderScreenService } from '@/services/screens/orderScreenService/OrderScreenService.ts';
+import { subscribeOrders } from '@/services/websocket/liveClient.ts';
 import { KitchenStatusENUM } from '@/types/order/KitchenStatusENUM.ts';
 import type { OrderBO } from '@/types/order/OrderBO.ts';
 
@@ -13,6 +14,14 @@ export const TABS: { id: KitchenTab; label: string }[] = [
   { id: KitchenStatusENUM.DELIVERED, label: 'Delivered' },
 ];
 
+/* Status priority used to group cards so status changes are visible */
+const STATUS_ORDER: Record<KitchenStatusENUM, number> = {
+  [KitchenStatusENUM.IN_QUEUE]:  0,
+  [KitchenStatusENUM.PREPARING]: 1,
+  [KitchenStatusENUM.PREPARED]:  2,
+  [KitchenStatusENUM.DELIVERED]: 3,
+};
+
 export function useOrdersVM() {
   const [orders, setOrders] = useState<OrderBO[]>([]);
   const [activeTab, setActiveTab] = useState<KitchenTab>('ALL');
@@ -22,8 +31,13 @@ export function useOrdersVM() {
   const loadOrders = useCallback(async () => {
     try {
       const data = await orderScreenService.getOrders();
-      // Sort newest first
-      data.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      // Group by status (queue → preparing → prepared → delivered), newest first within group
+      data.sort((a, b) => {
+        const statusA = STATUS_ORDER[a.kitchenStatus];
+        const statusB = STATUS_ORDER[b.kitchenStatus];
+        if (statusA !== statusB) return statusA - statusB;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
       setOrders(data);
     } catch {
       // Keep existing data on polling error
@@ -44,6 +58,14 @@ export function useOrdersVM() {
     return () => clearInterval(interval);
   }, [loadOrders]);
 
+  // Live refresh for order updates pushed over WebSocket
+  useEffect(() => {
+    const unsubscribe = subscribeOrders(() => {
+      void loadOrders();
+    });
+    return unsubscribe;
+  }, [loadOrders]);
+
   const filteredOrders =
     activeTab === 'ALL'
       ? orders
@@ -53,14 +75,22 @@ export function useOrdersVM() {
     orders.filter((o) => o.kitchenStatus === status).length;
 
   async function handleStatusUpdate(orderId: string, newStatus: KitchenStatusENUM) {
+    const previous = orders.find((o) => o.id === orderId);
     setUpdatingId(orderId);
+
+    // Optimistically reflect the new status so the card moves instantly
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, kitchenStatus: newStatus } : o))
+    );
+
     try {
       const updated = await orderScreenService.updateKitchenStatus(orderId, newStatus);
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? updated : o))
-      );
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updated : o)));
     } catch {
-      // Silently fail; UI stays the same
+      // Revert on failure so the UI stays in sync with the server
+      if (previous) {
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? previous : o)));
+      }
     } finally {
       setUpdatingId(null);
     }
