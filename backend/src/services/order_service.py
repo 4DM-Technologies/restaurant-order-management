@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from src.repositories import MenuRepository, OrderRepository
 from src.repositories.schema import KitchenStatus, Order, OrderStatus
+from src.utils.datetimes import iso_utc
 from src.utils.exceptions import NotFoundError
 
 
@@ -41,7 +42,7 @@ def serialize_order(db: Session, order: Order) -> dict:
         "total_price": float(order.total_price),
         "subtotal": round(float(order.total_price) - float(order.tax), 2),
         "tax": float(order.tax),
-        "created_at": order.created_at.isoformat(),
+        "created_at": iso_utc(order.created_at),
         "items": items,
     }
 

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from src.models.admin_schema import EmployeeCreate
 from src.repositories import AccountRepository
 from src.repositories.schema import Account, AccountRole
+from src.utils.datetimes import iso_utc
 from src.utils.exceptions import ConflictError, NotFoundError
 
 
@@ -18,7 +19,7 @@ def _account_out(account: Account) -> dict:
         "account_name": account.account_name,
         "account_email": account.account_email,
         "account_role": account.account_role.value,
-        "created_at": account.created_at.isoformat(),
+        "created_at": iso_utc(account.created_at),
         "has_password": account.account_password is not None,
         "can_delete": account.account_role != AccountRole.ADMIN,
     }
