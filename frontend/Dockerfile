@@ -20,6 +20,8 @@ WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
 
+COPY serve.json ./serve.json
+
 EXPOSE 80
 
-CMD ["serve", "-s", "dist", "-l", "80"]
+CMD ["serve", "-s", "dist", "-l", "80", "-c", "serve.json"]
