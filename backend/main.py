@@ -19,6 +19,7 @@ from src.database import Base, engine
 from src.routes import include_routers
 from src.settings import settings
 from src.utils.exceptions.handlers import register_exception_handlers
+from src.utils.logger import TraceIDMiddleware
 from src.utils.rate_limit import limiter
 
 
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(TraceIDMiddleware)
 
     # Slowapi rate limiting.
     app.state.limiter = limiter
