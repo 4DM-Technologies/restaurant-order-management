@@ -24,9 +24,15 @@ def to_out(item: MenuItem) -> dict:
         "category": item.category,
         "item_name": item.item_name,
         "item_description": item.item_description,
-        "standard_price": float(item.standard_price) if item.standard_price is not None else None,
-        "small_price": float(item.small_price) if item.small_price is not None else None,
-        "large_price": float(item.large_price) if item.large_price is not None else None,
+        "standard_price": float(item.standard_price)
+        if item.standard_price is not None
+        else None,
+        "small_price": float(item.small_price)
+        if item.small_price is not None
+        else None,
+        "large_price": float(item.large_price)
+        if item.large_price is not None
+        else None,
         "image_url": item.image_url,
         "is_available": bool(item.is_available),
     }
@@ -48,8 +54,13 @@ def list_menu(db: Session) -> list[dict]:
 
 def create_item(db: Session, data: dict) -> dict:
     existing = MenuRepository.list_all(db)
-    if any(i.item_name.lower() == data["name"].lower() and i.category == data["category"] for i in existing):
-        raise ConflictError("A menu item with that name already exists in this category")
+    if any(
+        i.item_name.lower() == data["name"].lower() and i.category == data["category"]
+        for i in existing
+    ):
+        raise ConflictError(
+            "A menu item with that name already exists in this category"
+        )
     item = MenuRepository.create(db, data)
     db.commit()
     db.refresh(item)

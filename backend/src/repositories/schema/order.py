@@ -33,7 +33,9 @@ class Order(Base):
     order_id: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     order_number: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
     # Client-generated payment reference -> idempotency key (avoids double insert).
-    order_ref: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
+    order_ref: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
     table_name: Mapped[str] = mapped_column(String(255), nullable=False)
     customer_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone_number: Mapped[str] = mapped_column(String(50), nullable=False)
@@ -61,7 +63,9 @@ class Order(Base):
     total_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     tax: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, default=0.0)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    created_by: Mapped[str] = mapped_column(String(255), nullable=False, default="SYSTEM")
+    created_by: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="SYSTEM"
+    )
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True, onupdate=_utcnow)
     updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

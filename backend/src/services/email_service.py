@@ -73,7 +73,9 @@ def build_bill_html(
 
     rows = []
     for it in items:
-        size = html.escape(str(it["selected_size"])) if it.get("selected_size") else None
+        size = (
+            html.escape(str(it["selected_size"])) if it.get("selected_size") else None
+        )
         name = html.escape(it["item_name"])
         qty = int(it["quantity"])
         detail = f"{size} · ×{qty}" if size else f"×{qty}"
@@ -85,7 +87,7 @@ def build_bill_html(
             <div style="color:#9B8B78;font-size:13px;margin-top:2px;">{detail}</div>
           </td>
           <td style="padding:12px 0;border-top:1px solid #F0E9DD;color:#2B1E16;font-size:15px;font-weight:600;text-align:right;white-space:nowrap;">
-            {_amount(it['line_total'])}
+            {_amount(it["line_total"])}
           </td>
         </tr>"""
         )
@@ -134,7 +136,7 @@ def build_bill_html(
                   <td style="padding:0 0 6px 0;color:#9B8B78;font-size:11px;letter-spacing:1px;text-transform:uppercase;">Item</td>
                   <td align="right" style="padding:0 0 6px 0;color:#9B8B78;font-size:11px;letter-spacing:1px;text-transform:uppercase;">Amount</td>
                 </tr>
-                {''.join(rows)}
+                {"".join(rows)}
               </table>
             </td>
           </tr>
@@ -202,10 +204,24 @@ def send_bill(
         return False
 
     body = build_bill_body(
-        order_number, items, subtotal, tax, total, payment_method, table_name, customer_name
+        order_number,
+        items,
+        subtotal,
+        tax,
+        total,
+        payment_method,
+        table_name,
+        customer_name,
     )
     html_body = build_bill_html(
-        order_number, items, subtotal, tax, total, payment_method, table_name, customer_name
+        order_number,
+        items,
+        subtotal,
+        tax,
+        total,
+        payment_method,
+        table_name,
+        customer_name,
     )
 
     if settings.email_mock:

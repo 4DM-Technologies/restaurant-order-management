@@ -59,11 +59,11 @@ class Settings(BaseSettings):
     upload_max_size_mb: int = 5
     upload_allowed_types: str = "jpeg,png,webp"
 
-    # S3 driver (used only when storage_driver == "s3")
+    # S3 driver (used only when storage_driver == "s3").
+    # AWS credentials are supplied by the AWS default credential chain
+    # (EC2 IAM role in deployment, env vars / ~/.aws/credentials locally)
+    # and the region by the AWS_REGION env var — none of them are DEV_ settings.
     s3_bucket: str = "soroco-food-images"
-    s3_region: str = "ap-south-1"
-    s3_access_key_id: str = ""
-    s3_secret_access_key: str = ""
     s3_cdn_url: str = ""
 
     # ── Uploaded image serving ───────────────────────────────────────────────

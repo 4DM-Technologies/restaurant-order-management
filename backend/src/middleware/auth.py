@@ -25,7 +25,9 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> Account
     try:
         payload = decode_token(token)
     except Exception as exc:
-        raise UnauthorizedError("Invalid or expired token. Please log in again.") from exc
+        raise UnauthorizedError(
+            "Invalid or expired token. Please log in again."
+        ) from exc
 
     subject = payload.get("sub")
     account = AccountRepository.get_by_uuid(db, str(subject)) if subject else None

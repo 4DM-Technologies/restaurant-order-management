@@ -33,9 +33,7 @@ async def ws_menu(websocket: WebSocket) -> None:
 
 
 @router.websocket("/orders")
-async def ws_orders(
-    websocket: WebSocket, token: str = Query(...)
-) -> None:
+async def ws_orders(websocket: WebSocket, token: str = Query(...)) -> None:
     """Authenticated kitchen stream — staff/admin JWT required."""
     if not await _authorize(websocket, token):
         return

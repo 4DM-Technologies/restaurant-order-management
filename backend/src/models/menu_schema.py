@@ -43,7 +43,11 @@ class MenuItemCreate(MenuItemBase):
     def resolve_price(self) -> "MenuItemCreate":
         if self.price is not None and self.standard_price is None:
             self.standard_price = self.price
-        if self.standard_price is None and self.small_price is None and self.large_price is None:
+        if (
+            self.standard_price is None
+            and self.small_price is None
+            and self.large_price is None
+        ):
             raise ValueError("At least one price is required")
         return self
 
@@ -77,10 +81,20 @@ class MenuItemPatch(BaseModel):
     def resolve_price(self) -> "MenuItemPatch":
         if self.price is not None:
             self.standard_price = self.price
-        if all(v is None for v in (self.category, self.name, self.description,
-                                   self.standard_price, self.small_price,
-                                   self.large_price, self.image_url,
-                                   self.is_available, self.price)):
+        if all(
+            v is None
+            for v in (
+                self.category,
+                self.name,
+                self.description,
+                self.standard_price,
+                self.small_price,
+                self.large_price,
+                self.image_url,
+                self.is_available,
+                self.price,
+            )
+        ):
             raise ValueError("Provide at least one field to update")
         return self
 

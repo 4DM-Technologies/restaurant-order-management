@@ -1,0 +1,15 @@
+# Gitleaks configuration — extends the default rules.
+title = "Soroco gitleaks config"
+
+[extend]
+useDefault = true
+
+# design/ docs contain FAKE example JWT/token strings (documentation only,
+# e.g. OpenAPI response samples). They are not real credentials, so suppress
+# scans of these documentation files while keeping the default rules on for
+# all source code.
+[allowlist]
+paths = [
+    "design/api-docs.md",
+    "design/openapi.yaml",
+]

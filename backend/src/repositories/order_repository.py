@@ -136,7 +136,11 @@ class OrderRepository:
 
     @staticmethod
     def patch_statuses(
-        db: Session, order: Order, kitchen_status=None, order_status=None, updated_by="SYSTEM"
+        db: Session,
+        order: Order,
+        kitchen_status=None,
+        order_status=None,
+        updated_by="SYSTEM",
     ) -> Order:
         if kitchen_status is not None:
             order.kitchen_status = kitchen_status

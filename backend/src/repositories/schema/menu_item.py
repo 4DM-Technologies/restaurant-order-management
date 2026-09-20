@@ -27,10 +27,10 @@ class MenuItem(Base):
     small_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     large_price: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    is_available: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=True
-    )
+    is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    created_by: Mapped[str] = mapped_column(String(255), nullable=False, default="SYSTEM")
+    created_by: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="SYSTEM"
+    )
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True, onupdate=_utcnow)
     updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)

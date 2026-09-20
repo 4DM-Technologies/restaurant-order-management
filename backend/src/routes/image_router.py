@@ -5,6 +5,8 @@ Uploaded photos end up in a private S3 bucket (Block Public Access = on), so
 Local driver uploads keep using the `/images` static mount instead.
 """
 
+import os
+
 from fastapi import APIRouter
 from fastapi.responses import Response
 
@@ -27,9 +29,7 @@ def serve_image(filename: str) -> Response:
 
     client = boto3.client(
         "s3",
-        region_name=settings.s3_region,
-        aws_access_key_id=settings.s3_access_key_id,
-        aws_secret_access_key=settings.s3_secret_access_key,
+        region_name=os.getenv("AWS_REGION", "ap-south-1"),
     )
     try:
         obj = client.get_object(Bucket=settings.s3_bucket, Key=filename)

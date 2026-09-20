@@ -1,6 +1,5 @@
 """Admin DTOs — employees + order history."""
 
-
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from src.repositories.schema.enums import AccountRole

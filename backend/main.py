@@ -4,6 +4,10 @@ Run: uvicorn main:app --reload
 Tables auto-create on startup; use `python -m src.seed` to load seed data.
 """
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import os
 from contextlib import asynccontextmanager
 

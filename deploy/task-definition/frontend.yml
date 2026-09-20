@@ -1,0 +1,31 @@
+# Task definition for the frontend (React/Vite) service.
+# VITE_* values are PUBLIC build-time URLs (not secrets) — resolved from
+# GitHub Secrets -> GitHub repo Variables -> `default`, then baked into the
+# image at build time. Keys marked `required: true` MUST resolve or the deploy fails.
+app_name: frontend
+env:
+  - key: VITE_APP_NAME
+    default: restaurant-order-management
+
+  # REST API base (already contains /api/v1). Required — config.ts falls back
+  # to localhost:8000 otherwise, which breaks on EC2 for real devices.
+  - key: VITE_API_BASE_URL
+    required: true
+
+  # WebSocket base (same backend origin).
+  - key: VITE_WS_BASE_URL
+    required: true
+
+  # Image origin — empty = same-origin (relative URLs). The Caddy reverse
+  # proxy on EC2 routes /images/* and /api/* to the backend, so relative URLs
+  # work over both http://IP and https://IP without mixed-content warnings.
+  - key: VITE_IMAGE_BASE_URL
+    default: ""
+
+  # Login-screen hint credentials (dev only — sync with backend/seed_data/accounts.json).
+  - key: VITE_ADMIN_EMAIL
+    default: thameem@test.com
+  - key: VITE_ADMIN_PASSWORD
+    default: admin123
+  - key: VITE_EMPLOYEE_EMAIL
+    default: employee@test.com

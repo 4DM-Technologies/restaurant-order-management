@@ -26,9 +26,7 @@ def _parse_date(value: str | None, end_of_day: bool = False) -> datetime | None:
     try:
         parsed = datetime.strptime(value + "+00:00", "%Y-%m-%d%z")
     except ValueError as exc:
-        raise ValidationFailure(
-            "Invalid date — use YYYY-MM-DD format"
-        ) from exc
+        raise ValidationFailure("Invalid date — use YYYY-MM-DD format") from exc
     if end_of_day:
         return parsed + timedelta(days=1)
     return parsed
@@ -40,9 +38,7 @@ def employees(db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/employees")
-def employees_create(
-    payload: EmployeeCreate, db: Session = Depends(get_db)
-) -> dict:
+def employees_create(payload: EmployeeCreate, db: Session = Depends(get_db)) -> dict:
     return ok(admin_service.create_employee(db, payload))
 
 
@@ -56,7 +52,11 @@ def employees_delete(account_uuid: str, db: Session = Depends(get_db)) -> dict:
 def employees_update(
     account_uuid: str, payload: EmployeePatch, db: Session = Depends(get_db)
 ) -> dict:
-    return ok(admin_service.update_employee(db, account_uuid, payload.model_dump(exclude_none=True)))
+    return ok(
+        admin_service.update_employee(
+            db, account_uuid, payload.model_dump(exclude_none=True)
+        )
+    )
 
 
 @router.get("/orders")

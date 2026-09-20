@@ -29,6 +29,8 @@ class Account(Base):
         nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=_utcnow)
-    created_by: Mapped[str] = mapped_column(String(255), nullable=False, default="SYSTEM")
+    created_by: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="SYSTEM"
+    )
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True, onupdate=_utcnow)
     updated_by: Mapped[str | None] = mapped_column(String(255), nullable=True)

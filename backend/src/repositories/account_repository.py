@@ -16,7 +16,9 @@ class AccountRepository:
 
     @staticmethod
     def get_by_email(db: Session, email: str) -> Account | None:
-        return db.scalar(select(Account).where(Account.account_email == email.strip().lower()))
+        return db.scalar(
+            select(Account).where(Account.account_email == email.strip().lower())
+        )
 
     @staticmethod
     def get_by_uuid(db: Session, account_uuid: str) -> Account | None:
@@ -40,7 +42,11 @@ class AccountRepository:
 
     @staticmethod
     def create(
-        db: Session, name: str, email: str, role: AccountRole, created_by: str = "SYSTEM"
+        db: Session,
+        name: str,
+        email: str,
+        role: AccountRole,
+        created_by: str = "SYSTEM",
     ) -> Account:
         account = Account(
             account_uuid=uuid.uuid4(),
