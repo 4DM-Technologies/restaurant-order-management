@@ -379,6 +379,8 @@ jobs:
           username: ubuntu
           key: ${{ secrets.DEV_EC2_SSH_KEY }}
           script: |
+            set -euo pipefail
+
             echo "${{ secrets.DEV_DOCKERHUB_TOKEN }}" | sudo docker login -u "${{ secrets.DEV_DOCKERHUB_USERNAME }}" --password-stdin
 
             # Env file + proxy config shipped from GitHub Secrets -> /tmp -> /opt/soroco
