@@ -18,3 +18,12 @@ paths = [
     # credentials, so suppress scanning of this fixture file.
     "backend/seed_data/accounts.json",
 ]
+
+# The menu S3-cleanup tests use obviously fake image object keys. The default
+# generic-api-key rule flags them on entropy alone (they are not credentials).
+# The current fixtures no longer look like secrets, but these exact strings
+# remain in earlier commits, so keep them allowed for full-history scans.
+regexes = [
+    '''cake-1234abcd\.webp''',
+    '''tea-5678efgh\.webp''',
+]
