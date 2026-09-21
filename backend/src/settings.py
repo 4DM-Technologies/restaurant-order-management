@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     upload_max_size_mb: int = 5
     upload_allowed_types: str = "jpeg,png,webp"
+    # External hosts (comma-separated) allowed as menu image_url values.
+    image_url_hosts: str = "images.unsplash.com"
+
+    @property
+    def image_url_host_list(self) -> list[str]:
+        return [h.strip() for h in self.image_url_hosts.split(",") if h.strip()]
 
     # S3 driver (used only when storage_driver == "s3").
     # Credentials may be supplied explicitly via DEV_S3_ACCESS_KEY_ID /

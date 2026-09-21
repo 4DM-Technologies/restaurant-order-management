@@ -5,6 +5,8 @@ Uploaded photos end up in a private S3 bucket (Block Public Access = on), so
 Local driver uploads keep using the `/images` static mount instead.
 """
 
+import re
+
 from fastapi import APIRouter
 from fastapi.responses import Response
 
@@ -15,12 +17,17 @@ from src.utils.logger import logger
 router = APIRouter(prefix="/images", tags=["images"])
 
 _MEDIA_TYPE = "image/webp"
+_KEY_RE = re.compile(r"^[a-z0-9-]+\.webp$")
 
 
 @router.get("/{filename}")
 def serve_image(filename: str) -> Response:
     if settings.storage_driver.lower() != "s3":
         # Local driver uploads are served by the static `/images` mount instead.
+        raise NotFoundError("Image not found")
+
+    if not _KEY_RE.match(filename):
+        logger.warning("Rejected non-standard S3 image key: %s", filename)
         raise NotFoundError("Image not found")
 
     import boto3

@@ -21,7 +21,7 @@ export const store = configureStore({
     auth: authReducer,
   },
   preloadedState,
-  devTools: import.meta.env.MODE !== 'production',
+  devTools: import.meta.env.DEV,
 });
 
 export type RootState = ReturnType<typeof store.getState>;

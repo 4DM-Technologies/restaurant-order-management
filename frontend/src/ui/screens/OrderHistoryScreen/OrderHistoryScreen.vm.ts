@@ -27,23 +27,31 @@ function isYesterday(dateStr: string): boolean {
   );
 }
 
+function csvCell(value: string | number): string {
+  const text = String(value ?? '');
+  const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return `"${guarded.replace(/"/g, '""')}"`;
+}
+
 function exportCSV(orders: OrderBO[]) {
   const headers = [
     'Order #', 'Date', 'Table', 'Customer', 'Phone',
     'Total', 'Payment', 'Payment Status', 'Kitchen Status',
   ];
   const rows = orders.map((o) => [
-    o.orderNumber,
+    String(o.orderNumber),
     new Date(o.createdAt).toLocaleString(),
-    o.tableNumber,
-    o.customerName,
-    o.customerPhone,
-    o.total,
-    o.paymentMethod,
-    o.paymentStatus,
-    o.kitchenStatus,
+    String(o.tableNumber),
+    String(o.customerName),
+    String(o.customerPhone),
+    String(o.total),
+    String(o.paymentMethod),
+    String(o.paymentStatus),
+    String(o.kitchenStatus),
   ]);
-  const csv = [headers, ...rows].map((r) => r.join(',')).join('\n');
+  const csv = [headers, ...rows]
+    .map((r) => r.map(csvCell).join(','))
+    .join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

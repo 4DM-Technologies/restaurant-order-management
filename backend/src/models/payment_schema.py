@@ -1,10 +1,13 @@
 """Payment DTOs — single POST /payment (mock gateway for now)."""
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from src.repositories.schema.enums import PaymentMethod, SelectedSize
+
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 class PaymentItem(BaseModel):
@@ -38,16 +41,17 @@ class PaymentRequest(BaseModel):
         digits = "".join(ch for ch in v if ch.isdigit())
         if len(digits) < 10:
             raise ValueError("Enter a valid phone number (10 digits)")
-        return v
+        return digits[:15]
 
     @field_validator("customer_email")
     @classmethod
     def email_required(cls, v: str) -> str:
-        if not v.strip():
+        cleaned = v.strip().lower()
+        if not cleaned:
             raise ValueError("Email is required")
-        if "@" not in v:
+        if "\n" in v or "\r" in v or not _EMAIL_RE.match(cleaned):
             raise ValueError("Enter a valid email address")
-        return v
+        return cleaned
 
 
 class PaymentSuccess(BaseModel):
