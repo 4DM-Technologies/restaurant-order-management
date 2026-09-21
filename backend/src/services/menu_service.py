@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from src.repositories import MenuRepository
 from src.repositories.schema import MenuItem
+from src.services import storage as storage_service
 from src.utils.exceptions import ConflictError, NotFoundError
 from src.utils.logger import logged
 
@@ -70,14 +71,28 @@ def create_item(db: Session, data: dict) -> dict:
     return to_out(item)
 
 
+def _cleanup_uploaded_image(db: Session, image_url: str | None) -> None:
+    """Delete an app-managed S3 upload once it is no longer referenced."""
+    if not image_url:
+        return
+    for other in MenuRepository.list_all(db):
+        if other.image_url and other.image_url == image_url:
+            return  # still in use by another item — keep it
+    storage_service.delete_image(image_url)
+
+
 @logged(workflow="menu-admin")
 def patch_item(db: Session, menu_uuid: str, data: dict) -> dict:
     item = MenuRepository.get_by_uuid(db, menu_uuid)
     if item is None:
         raise NotFoundError("Menu item not found")
+    old_url = item.image_url
+    new_url = data.get("image_url")
     item = MenuRepository.patch(db, item, data)
     db.commit()
     db.refresh(item)
+    if new_url is not None and new_url != old_url:
+        _cleanup_uploaded_image(db, old_url)
     return to_out(item)
 
 
@@ -86,5 +101,7 @@ def delete_item(db: Session, menu_uuid: str) -> None:
     item = MenuRepository.get_by_uuid(db, menu_uuid)
     if item is None:
         raise NotFoundError("Menu item not found")
+    image_url = item.image_url
     MenuRepository.delete(db, item)
     db.commit()
+    _cleanup_uploaded_image(db, image_url)

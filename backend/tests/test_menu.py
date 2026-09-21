@@ -63,3 +63,86 @@ def test_menu_image_url_must_be_trusted(client, admin_user):
     assert untrusted.status_code == 422
     relative = _create_menu_item(client, headers, image_url="/images/food.webp")
     assert relative.status_code == 200
+
+
+OLD_KEY = "cake-1234abcd.webp"
+NEW_KEY = "tea-5678efgh.webp"
+OLD_URL = f"/api/v1/images/{OLD_KEY}"
+NEW_URL = f"/api/v1/images/{NEW_KEY}"
+
+
+class _FakeS3Client:
+    def __init__(self):
+        self.deleted: list[str] = []
+
+    def delete_object(self, Bucket, Key):
+        self.deleted.append(Key)
+
+
+def _s3_spy(monkeypatch):
+    """Simulate S3 driver and record delete_object keys."""
+    from src.settings import settings
+
+    fake = _FakeS3Client()
+    monkeypatch.setattr(settings, "storage_driver", "s3")
+    monkeypatch.setattr("src.services.storage.s3_storage._client", lambda: fake)
+    return fake.deleted
+
+
+def test_patch_replacing_uploaded_image_deletes_old(client, admin_user, monkeypatch):
+    _, _, headers = admin_user
+    deleted = _s3_spy(monkeypatch)
+    created = _create_menu_item(client, headers, name="Cake", image_url=OLD_URL)
+    menu_uuid = created.json()["data"]["menu_uuid"]
+    resp = client.patch(
+        f"/api/v1/menu/{menu_uuid}", json={"image_url": NEW_URL}, headers=headers
+    )
+    assert resp.status_code == 200
+    assert deleted == [OLD_KEY]
+
+
+def test_patch_without_image_change_does_not_delete(client, admin_user, monkeypatch):
+    _, _, headers = admin_user
+    deleted = _s3_spy(monkeypatch)
+    created = _create_menu_item(client, headers, name="Cake", image_url=OLD_URL)
+    menu_uuid = created.json()["data"]["menu_uuid"]
+    resp = client.patch(
+        f"/api/v1/menu/{menu_uuid}", json={"large_price": 300}, headers=headers
+    )
+    assert resp.status_code == 200
+    assert deleted == []
+
+
+def test_delete_item_deletes_uploaded_image(client, admin_user, monkeypatch):
+    _, _, headers = admin_user
+    deleted = _s3_spy(monkeypatch)
+    created = _create_menu_item(client, headers, name="Cake", image_url=OLD_URL)
+    menu_uuid = created.json()["data"]["menu_uuid"]
+    resp = client.delete(f"/api/v1/menu/{menu_uuid}", headers=headers)
+    assert resp.status_code == 200
+    assert deleted == [OLD_KEY]
+
+
+def test_shared_uploaded_image_is_kept(client, admin_user, monkeypatch):
+    _, _, headers = admin_user
+    deleted = _s3_spy(monkeypatch)
+    first = _create_menu_item(client, headers, name="Cake A", image_url=OLD_URL)
+    second = _create_menu_item(client, headers, name="Cake B", image_url=OLD_URL)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    menu_uuid = first.json()["data"]["menu_uuid"]
+    resp = client.patch(
+        f"/api/v1/menu/{menu_uuid}", json={"image_url": NEW_URL}, headers=headers
+    )
+    assert resp.status_code == 200
+    assert deleted == []
+
+
+def test_external_image_is_never_deleted(client, admin_user, monkeypatch):
+    _, _, headers = admin_user
+    deleted = _s3_spy(monkeypatch)
+    created = _create_menu_item(client, headers, name="Cake")
+    menu_uuid = created.json()["data"]["menu_uuid"]
+    resp = client.delete(f"/api/v1/menu/{menu_uuid}", headers=headers)
+    assert resp.status_code == 200
+    assert deleted == []
