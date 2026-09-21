@@ -22,6 +22,35 @@ from src.utils.exceptions.handlers import register_exception_handlers
 from src.utils.logger import TraceIDMiddleware, logger
 from src.utils.rate_limit import limiter
 
+_HARDENING_HEADERS = {
+    b"x-content-type-options": b"nosniff",
+    b"x-frame-options": b"DENY",
+    b"referrer-policy": b"no-referrer",
+}
+
+
+class SecurityHeadersMiddleware:
+    """ASGI middleware that stamps hardening headers on every HTTP response."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                for key, value in _HARDENING_HEADERS.items():
+                    if not any(k == key for k, _ in headers):
+                        headers.append((key, value))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_wrapper)
+
 
 def _base_url() -> str:
     if settings.public_url:
@@ -108,6 +137,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.add_middleware(TraceIDMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Slowapi rate limiting.
     app.state.limiter = limiter

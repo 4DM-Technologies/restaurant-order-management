@@ -4,7 +4,7 @@ def _create_menu_item(client, admin_headers, **overrides):
         "name": "Darjeeling First Flush",
         "description": "Delicate golden liquor.",
         "standard_price": 280,
-        "image_url": "https://example.com/tea.jpg",
+        "image_url": "https://images.unsplash.com/tea.jpg",
         **overrides,
     }
     return client.post("/api/v1/menu", json=payload, headers=admin_headers)
@@ -53,3 +53,13 @@ def test_menu_missing_item_patch_404(client, admin_user):
         headers=headers,
     )
     assert resp.status_code == 404
+
+
+def test_menu_image_url_must_be_trusted(client, admin_user):
+    _, _, headers = admin_user
+    untrusted = _create_menu_item(
+        client, headers, image_url="https://evil.example.com/x.jpg"
+    )
+    assert untrusted.status_code == 422
+    relative = _create_menu_item(client, headers, image_url="/images/food.webp")
+    assert relative.status_code == 200

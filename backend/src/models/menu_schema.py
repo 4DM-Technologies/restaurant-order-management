@@ -1,6 +1,23 @@
 """Menu DTOs — grouped list, create, patch."""
 
+from urllib.parse import urlsplit
+
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from src.settings import settings
+
+
+def _valid_image_url(url: str | None) -> bool:
+    value = (url or "").strip()
+    if not value:
+        return True
+    if value.startswith(("/images/", "/api/v1/images/")):
+        return True
+    parsed = urlsplit(value)
+    if parsed.scheme == "https" and parsed.netloc in settings.image_url_host_list:
+        return True
+    cdn = settings.s3_cdn_url.strip().rstrip("/")
+    return bool(cdn and value.startswith(cdn + "/"))
 
 
 class MenuItemBase(BaseModel):
@@ -32,6 +49,13 @@ class MenuItemBase(BaseModel):
     def price_non_negative(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("Prices cannot be negative")
+        return v
+
+    @field_validator("image_url")
+    @classmethod
+    def image_url_safe(cls, v: str | None) -> str | None:
+        if not _valid_image_url(v):
+            raise ValueError("Image must be an app-served path")
         return v
 
 
@@ -75,6 +99,13 @@ class MenuItemPatch(BaseModel):
     def price_non_negative(cls, v: float | None) -> float | None:
         if v is not None and v < 0:
             raise ValueError("Prices cannot be negative")
+        return v
+
+    @field_validator("image_url")
+    @classmethod
+    def image_url_safe(cls, v: str | None) -> str | None:
+        if not _valid_image_url(v):
+            raise ValueError("Image must be an app-served path")
         return v
 
     @model_validator(mode="after")

@@ -71,12 +71,13 @@ def process_payment(db: Session, payload: PaymentRequest) -> PaymentResult:
     existing = OrderRepository.get_by_order_ref(db, payload.order_ref)
     if existing is not None and existing.payment_status.value == "success":
         logger.info("Idempotent hit for order_ref=%s", payload.order_ref)
+        # Re-sending the payment only re-confirms status; do not echo the stored
+        # order (customer name/phone) to a caller who did not create it.
         return PaymentResult(
             success=True,
             status="success",
             order_number=existing.order_number,
             total=float(existing.total_price),
-            order=serialize_order(db, existing),
         )
 
     rows: list[dict] = []

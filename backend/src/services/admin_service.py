@@ -72,6 +72,14 @@ def update_employee(db: Session, account_uuid: str, data: dict) -> dict:
     return _account_out(account)
 
 
+def _csv_safe(value) -> str:
+    """Guard against spreadsheet formula injection (leading = + - @)."""
+    text = str(value)
+    if text[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + text
+    return text
+
+
 @logged(workflow="admin-orders-export")
 def build_orders_csv(orders: list[dict]) -> str:
     buffer = io.StringIO()
@@ -103,19 +111,19 @@ def build_orders_csv(orders: list[dict]) -> str:
         qty = sum(it["quantity"] for it in order["items"])
         writer.writerow(
             [
-                order["order_number"],
-                order["created_at"],
-                order["table_name"],
-                order["customer_name"],
-                item_lines,
-                qty,
-                f"{order['subtotal']:.2f}",
-                f"{order['tax']:.2f}",
-                f"{order['total_price']:.2f}",
-                order["payment_method"],
-                order["payment_status"],
-                order["kitchen_status"],
-                order["order_status"],
+                _csv_safe(order["order_number"]),
+                _csv_safe(order["created_at"]),
+                _csv_safe(order["table_name"]),
+                _csv_safe(order["customer_name"]),
+                _csv_safe(item_lines),
+                _csv_safe(qty),
+                _csv_safe(f"{order['subtotal']:.2f}"),
+                _csv_safe(f"{order['tax']:.2f}"),
+                _csv_safe(f"{order['total_price']:.2f}"),
+                _csv_safe(order["payment_method"]),
+                _csv_safe(order["payment_status"]),
+                _csv_safe(order["kitchen_status"]),
+                _csv_safe(order["order_status"]),
             ]
         )
     return buffer.getvalue()
