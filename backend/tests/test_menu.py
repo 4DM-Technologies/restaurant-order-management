@@ -65,8 +65,8 @@ def test_menu_image_url_must_be_trusted(client, admin_user):
     assert relative.status_code == 200
 
 
-OLD_KEY = "cake-1234abcd.webp"
-NEW_KEY = "tea-5678efgh.webp"
+OLD_KEY = "cake-old.webp"
+NEW_KEY = "tea-new.webp"
 OLD_URL = f"/api/v1/images/{OLD_KEY}"
 NEW_URL = f"/api/v1/images/{NEW_KEY}"
 
