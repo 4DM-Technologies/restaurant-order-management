@@ -1,4 +1,6 @@
 import type { MenuItemBO } from '@/types/menu/MenuItemBO.ts';
+import atmoBanner from '@/assets/atmo-banner.avif';
+import atmoWide from '@/assets/atmo-wide.avif';
 
 // =====================================================
 // SOROCO HOUSE — COMPLETE MENU DATA
@@ -26,12 +28,10 @@ export const IMAGES = {
     'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1920&q=90&auto=format&fit=crop',
   STORY_BG:
     'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=1200&q=85&auto=format&fit=crop',
-  ATMO_1:
-    'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=900&q=85&auto=format&fit=crop',
+  ATMO_1: atmoBanner,
   ATMO_2:
     'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=900&q=85&auto=format&fit=crop',
-  ATMO_3:
-    'https://images.unsplash.com/photo-1493857671505-72967e2e2760?w=900&q=85&auto=format&fit=crop',
+  ATMO_3: atmoWide,
 
   // ── Hot Luxury Teas ────────────────────────────────────────────────────────
   // Darjeeling — golden loose-leaf tea in glass cup on wooden table

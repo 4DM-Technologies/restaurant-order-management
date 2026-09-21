@@ -188,28 +188,45 @@ function StorySection() {
             </Reveal>
             <Reveal delay={0.15}>
               <p className="body-md mb-5 leading-[1.8]">
-                Soroco was born from a simple belief — that coffee and tea are not just
-                beverages, they are rituals. Our name blends <em>South</em> and <em>Roco</em>,
-                a nod to both South Indian filter traditions and the rocky highlands where our
-                finest beans are grown.
+                At Soroco House, we are dedicated to crafting the finest specialty
+                coffee experience, right here in the heart of Tamil Nadu. Founded
+                in 2021, our journey began with a passion for exceptional coffee,
+                and today, we proudly serve brews made from locally sourced beans
+                that score above 80+, meeting the highest standards of Specialty
+                Coffee.
               </p>
             </Reveal>
             <Reveal delay={0.2}>
+              <p className="body-md mb-5 leading-[1.8]">
+                Our café is designed for those who appreciate quality and ambiance,
+                catering to individuals with a discerning palate. With a carefully
+                curated menu and a variety of coffee and food options, Soroco House
+                offers something for everyone, ensuring consistency across all our
+                locations.
+              </p>
+            </Reveal>
+            <Reveal delay={0.25}>
+              <p className="body-md mb-4 leading-[1.8]">
+                Our mission is simple: to serve each customer the perfect cup of
+                coffee, prepared with care and precision.
+              </p>
+            </Reveal>
+            <Reveal delay={0.3}>
               <p className="body-md mb-8 leading-[1.8]">
-                Every cup at Soroco House is the result of weeks of curation — sourcing
-                single-origin lots, developing house roast profiles, and crafting drinks
-                that feel both timeless and new. We believe in transparency, craftsmanship,
-                and the quiet joy of a perfectly made brew.
+                We invite you to visit and experience our offerings — crafted to
+                elevate your coffee journey. Come, savor the art of specialty
+                coffee with us, where each sip is a celebration of quality and
+                community.
               </p>
             </Reveal>
 
             {/* Stats */}
-            <Reveal delay={0.25}>
+            <Reveal delay={0.35}>
               <div className="grid grid-cols-3 gap-6 pt-6 border-t border-soroco-linen">
                 {[
-                  { value: '12+', label: 'Origins' },
-                  { value: '40+', label: 'Blends' },
-                  { value: '6',   label: 'Years' },
+                  { value: '80+',  label: 'Bean Score' },
+                  { value: '3',    label: 'Locations' },
+                  { value: '4',    label: 'Years' },
                 ].map(({ value, label }) => (
                   <div key={label} className="text-center">
                     <p className="font-display font-bold text-3xl text-soroco-espresso">{value}</p>
@@ -253,7 +270,7 @@ function StorySection() {
                 className="absolute -top-4 -right-4 sm:-top-5 sm:-right-5 bg-soroco-amber text-white px-5 py-4 rounded-2xl shadow-warm-lg"
               >
                 <p className="font-display font-bold text-2xl">Since</p>
-                <p className="font-display font-bold text-3xl leading-none">'18</p>
+                <p className="font-display font-bold text-3xl leading-none">'21</p>
               </motion.div>
             </div>
           </Reveal>
@@ -415,8 +432,8 @@ function AtmosphereSection() {
           {/* Image mosaic */}
           <Reveal x={-40} y={0}>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              {/* Tall left image */}
-              <div className="row-span-2 rounded-2xl overflow-hidden aspect-[2/3] bg-soroco-mocha shadow-warm-lg">
+              {/* Wide cinematic banner */}
+              <div className="col-span-2 rounded-2xl overflow-hidden aspect-[21/9] bg-soroco-mocha shadow-warm-lg">
                 <img
                   src={IMAGES.ATMO_1}
                   alt="Soroco House atmosphere"
@@ -427,7 +444,7 @@ function AtmosphereSection() {
                   }`}
                 />
               </div>
-              {/* Top right */}
+              {/* Coffee */}
               <div className="rounded-2xl overflow-hidden aspect-square bg-soroco-mocha shadow-warm-lg">
                 <img
                   src={IMAGES.ATMO_2}
@@ -439,7 +456,7 @@ function AtmosphereSection() {
                   }`}
                 />
               </div>
-              {/* Bottom right */}
+              {/* Wide crop */}
               <div className="rounded-2xl overflow-hidden aspect-square bg-soroco-mocha shadow-warm-lg">
                 <img
                   src={IMAGES.ATMO_3}
@@ -483,8 +500,7 @@ function AtmosphereSection() {
                 <MapPin className="w-5 h-5 text-soroco-amber mt-0.5 shrink-0" />
                 <div>
                   <p className="font-semibold text-soroco-cream">Soroco House</p>
-                  <p>12 Brew Street, Koramangala</p>
-                  <p>Bengaluru — 560 034</p>
+                  <p>Nungambakkam, Chennai, Tamil Nadu, India</p>
                   <p className="mt-1 flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-soroco-amber" />
                     <span>7:30 AM – 10:30 PM, Daily</span>

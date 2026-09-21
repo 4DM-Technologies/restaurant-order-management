@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { MapPin, Phone, Mail, Clock, Instagram, Facebook, Twitter, Coffee } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, Instagram, Coffee } from 'lucide-react';
 
 // ── Real Soroco data from soroco.coffee ──────────────────────────────────────
 const SOROCO_INFO = {
@@ -8,17 +8,22 @@ const SOROCO_INFO = {
   phoneRaw: '+919884377632',
   email:    'enquiry@majofoods.in',
   website:  'https://www.soroco.coffee',
-  instagram:'https://www.instagram.com/',
+  instagram:'https://www.instagram.com/sorocohouse/?hl=en',
   hours: [
     { days: 'Monday – Friday', time: '5:00 AM – 9:00 PM' },
     { days: 'Saturday – Sunday', time: '7:00 AM – 10:00 PM' },
   ],
   about:
     'Founded in 2021, Soroco House is dedicated to crafting the finest specialty coffee experience in the heart of Tamil Nadu — using locally sourced beans that score 80+, meeting the highest standards of Specialty Coffee.',
+  maps: {
+    nungambakkam: 'https://www.google.com/maps/place/SOROCO+HOUSE/data=!4m7!3m6!1s0x3a5267b0a3b684d1:0x43c877a7faf0d754!8m2!3d13.0611536!4d80.2494252!16s%2Fg%2F11t0mn66fv!19sChIJ0YS2o7BnUjoRVNfw-qd3yEM?authuser=0&hl=en&g_ep=EgoyMDI2MDkxNi4wIJJjKgBIAVAD&rclk=1',
+    omr:         'https://maps.app.goo.gl/zbwhFP5vryVT74MD9',
+    annaNagar:   'https://www.google.com/maps/place/Soroco+House+%7C+Anna+Nagar/data=!4m7!3m6!1s0x3a526580a3db512b:0xdb59bc7d05144602!8m2!3d13.0831706!4d80.2087722!16s%2Fg%2F11svt75h49!19sChIJK1Hbo4BlUjoRAkYUBX28Wds?authuser=0&hl=en&g_ep=EgoyMDI2MDkxNi4wIJJjKgBIAVAD&rclk=1',
+  },
   locations: [
-    { name: 'SOROCO Nungambakkam', href: 'https://www.soroco.coffee/copy-of-soroco-anna-nagar' },
-    { name: 'SOROCO OMR',          href: 'https://www.soroco.coffee/copy-of-soroco-nungambakkam' },
-    { name: 'SOROCO Anna Nagar',   href: 'https://www.soroco.coffee/menus' },
+    { name: 'SOROCO Nungambakkam', href: 'https://www.google.com/maps/place/SOROCO+HOUSE/data=!4m7!3m6!1s0x3a5267b0a3b684d1:0x43c877a7faf0d754!8m2!3d13.0611536!4d80.2494252!16s%2Fg%2F11t0mn66fv!19sChIJ0YS2o7BnUjoRVNfw-qd3yEM?authuser=0&hl=en&g_ep=EgoyMDI2MDkxNi4wIJJjKgBIAVAD&rclk=1' },
+    { name: 'SOROCO OMR',          href: 'https://maps.app.goo.gl/zbwhFP5vryVT74MD9' },
+    { name: 'SOROCO Anna Nagar',   href: 'https://www.google.com/maps/place/Soroco+House+%7C+Anna+Nagar/data=!4m7!3m6!1s0x3a526580a3db512b:0xdb59bc7d05144602!8m2!3d13.0831706!4d80.2087722!16s%2Fg%2F11svt75h49!19sChIJK1Hbo4BlUjoRAkYUBX28Wds?authuser=0&hl=en&g_ep=EgoyMDI2MDkxNi4wIJJjKgBIAVAD&rclk=1' },
   ],
 };
 
@@ -41,8 +46,7 @@ const QUICK_LINKS = [
 
 const SOCIAL = [
   { icon: Instagram, label: 'Instagram', href: SOROCO_INFO.instagram },
-  { icon: Facebook,  label: 'Facebook',  href: '#' },
-  { icon: Twitter,   label: 'Twitter',   href: '#' },
+  { icon: Mail,      label: 'Email',     href: `mailto:${SOROCO_INFO.email}` },
 ];
 
 export default function Footer() {
@@ -171,9 +175,14 @@ export default function Footer() {
             <ul className="space-y-4 mb-6">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-soroco-tan" />
-                <span className="font-body text-sm text-soroco-parchment/65 leading-relaxed">
+                <a
+                  href={SOROCO_INFO.maps.nungambakkam}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-body text-sm text-soroco-parchment/65 leading-relaxed hover:text-soroco-cream transition-colors"
+                >
                   {SOROCO_INFO.address}
-                </span>
+                </a>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 shrink-0 text-soroco-tan" />
